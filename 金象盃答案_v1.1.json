@@ -1,0 +1,386 @@
+[
+  {
+    "id": "1775529855690",
+    "questionId": "c1_q1",
+    "categoryId": "c1",
+    "submittedAnswer": "45",
+    "isCorrect": true,
+    "timestamp": 1775529855690
+  },
+  {
+    "id": "1775529878070",
+    "questionId": "preface_q1",
+    "categoryId": "preface",
+    "submittedAnswer": "115/4/7",
+    "isCorrect": true,
+    "timestamp": 1775529878070
+  },
+  {
+    "id": "1775529884422",
+    "questionId": "c1_q2",
+    "categoryId": "c1",
+    "submittedAnswer": "3036",
+    "isCorrect": true,
+    "timestamp": 1775529884422
+  },
+  {
+    "id": "1775529908347",
+    "questionId": "c1_q3",
+    "categoryId": "c1",
+    "submittedAnswer": "新北市 22706\n高雄市 16753\n台中市 15261\n",
+    "isCorrect": true,
+    "timestamp": 1775529908347
+  },
+  {
+    "id": "1775529918585",
+    "questionId": "c2_q1",
+    "categoryId": "c2",
+    "submittedAnswer": "松山 60\n大同 57\n中山 55\n",
+    "isCorrect": true,
+    "timestamp": 1775529918585
+  },
+  {
+    "id": "1775529933698",
+    "questionId": "c2_q2",
+    "categoryId": "c2",
+    "submittedAnswer": "臺東縣 24.00\n雲林縣 22.00\n南投縣 20.75\n",
+    "isCorrect": true,
+    "timestamp": 1775529933698
+  },
+  {
+    "id": "1775529942113",
+    "questionId": "c2_q3",
+    "categoryId": "c2",
+    "submittedAnswer": "\n17 67\n竹山 82\n",
+    "isCorrect": true,
+    "timestamp": 1775529942113
+  },
+  {
+    "id": "1775529958628",
+    "questionId": "c3_q2",
+    "categoryId": "c3",
+    "submittedAnswer": "雲林縣 4\n臺南市 3\n",
+    "isCorrect": true,
+    "timestamp": 1775529958628
+  },
+  {
+    "id": "1775529964373",
+    "questionId": "c3_q3",
+    "categoryId": "c3",
+    "submittedAnswer": "國道一號 77\n國道三號 52\n國道五號 20\n",
+    "isCorrect": true,
+    "timestamp": 1775529964373
+  },
+  {
+    "id": "1775538357566",
+    "questionId": "c4_q1",
+    "categoryId": "c4",
+    "submittedAnswer": "穎崴 880.00\n鴻勁 210.00\n川湖 205.00\n",
+    "isCorrect": true,
+    "timestamp": 1775538357566
+  },
+  {
+    "id": "1775538366274",
+    "questionId": "c4_q2",
+    "categoryId": "c4",
+    "submittedAnswer": "台積電 85667372522",
+    "isCorrect": true,
+    "timestamp": 1775538366274
+  },
+  {
+    "id": "1775538372866",
+    "questionId": "c4_q3",
+    "categoryId": "c4",
+    "submittedAnswer": "648",
+    "isCorrect": true,
+    "timestamp": 1775538372866
+  },
+  {
+    "id": "1775538382338",
+    "questionId": "c3_q1",
+    "categoryId": "c3",
+    "submittedAnswer": "新北市 188\n嘉義市 11",
+    "isCorrect": true,
+    "timestamp": 1775538382338
+  },
+  {
+    "id": "1775538392711",
+    "questionId": "c5_q1",
+    "categoryId": "c5",
+    "submittedAnswer": "75.45 73.95 -1.50",
+    "isCorrect": true,
+    "timestamp": 1775538392711
+  },
+  {
+    "id": "1775538400856",
+    "questionId": "c5_q2",
+    "categoryId": "c5",
+    "submittedAnswer": "7765 19.58\n1449 19.38\n6464 10.65",
+    "isCorrect": true,
+    "timestamp": 1775538400856
+  },
+  {
+    "id": "1775538406526",
+    "questionId": "c5_q3",
+    "categoryId": "c5",
+    "submittedAnswer": "96",
+    "isCorrect": true,
+    "timestamp": 1775538406526
+  },
+  {
+    "id": "1775538414843",
+    "questionId": "c5_q4",
+    "categoryId": "c5",
+    "submittedAnswer": "台積電 139207667903\n華通 59948333146\n南亞科 50356329567",
+    "isCorrect": true,
+    "timestamp": 1775538414843
+  },
+  {
+    "id": "1775538443703",
+    "questionId": "c6_q1",
+    "categoryId": "c6",
+    "submittedAnswer": "10005 8073",
+    "isCorrect": true,
+    "timestamp": 1775538443703
+  },
+  {
+    "id": "1775539091638",
+    "questionId": "c6_q2",
+    "categoryId": "c6",
+    "submittedAnswer": "212493",
+    "isCorrect": true,
+    "timestamp": 1775539091638
+  },
+  {
+    "id": "1775541891071",
+    "questionId": "c6_q3",
+    "categoryId": "c6",
+    "submittedAnswer": "10848",
+    "isCorrect": true,
+    "timestamp": 1775541891071
+  },
+  {
+    "id": "1775541900766",
+    "questionId": "c6_q4",
+    "categoryId": "c6",
+    "submittedAnswer": "1000 47316\n3300 29755\n4220 26516",
+    "isCorrect": true,
+    "timestamp": 1775541900766
+  },
+  {
+    "id": "1775541924957",
+    "questionId": "c7_q1",
+    "categoryId": "c7",
+    "submittedAnswer": "1852477",
+    "isCorrect": true,
+    "timestamp": 1775541924957
+  },
+  {
+    "id": "1775541938411",
+    "questionId": "c7_q2",
+    "categoryId": "c7",
+    "submittedAnswer": "新北市永和區 37021\n新北市蘆洲區 26411\n高雄市新興區 24984\n",
+    "isCorrect": true,
+    "timestamp": 1775541938411
+  },
+  {
+    "id": "1775541947554",
+    "questionId": "c7_q3",
+    "categoryId": "c7",
+    "submittedAnswer": "臺中市中區 0.8803\n金門縣烏坵鄉 1.2\n高雄市鹽埕區 1.4161\n",
+    "isCorrect": true,
+    "timestamp": 1775541947554
+  },
+  {
+    "id": "1775541956322",
+    "questionId": "c8_q1",
+    "categoryId": "c8",
+    "submittedAnswer": "160469 122752",
+    "isCorrect": true,
+    "timestamp": 1775541956322
+  },
+  {
+    "id": "1775541967124",
+    "questionId": "c8_q2",
+    "categoryId": "c8",
+    "submittedAnswer": "167900 9/28",
+    "isCorrect": true,
+    "timestamp": 1775541967124
+  },
+  {
+    "id": "1775541975158",
+    "questionId": "c8_q3",
+    "categoryId": "c8",
+    "submittedAnswer": "122769",
+    "isCorrect": true,
+    "timestamp": 1775541975158
+  },
+  {
+    "id": "1775541985679",
+    "questionId": "c8_q4",
+    "categoryId": "c8",
+    "submittedAnswer": "14",
+    "isCorrect": true,
+    "timestamp": 1775541985679
+  },
+  {
+    "id": "1775541992704",
+    "questionId": "c9_q1",
+    "categoryId": "c9",
+    "submittedAnswer": "4145083 4899031",
+    "isCorrect": true,
+    "timestamp": 1775541992704
+  },
+  {
+    "id": "1775542001862",
+    "questionId": "c9_q2",
+    "categoryId": "c9",
+    "submittedAnswer": "-63476",
+    "isCorrect": true,
+    "timestamp": 1775542001862
+  },
+  {
+    "id": "1775542020286",
+    "questionId": "c9_q3",
+    "categoryId": "c9",
+    "submittedAnswer": "516851\n3/18\n",
+    "isCorrect": true,
+    "timestamp": 1775542020286
+  },
+  {
+    "id": "1775542033124",
+    "questionId": "c9_q4",
+    "categoryId": "c9",
+    "submittedAnswer": "435997\n526316 20.72%\n498566 -5.27%\n",
+    "isCorrect": true,
+    "timestamp": 1775542033124
+  },
+  {
+    "id": "1775542050939",
+    "questionId": "c9_q5",
+    "categoryId": "c9",
+    "submittedAnswer": "12/26 6958\n1/31 7262\n",
+    "isCorrect": true,
+    "timestamp": 1775542050939
+  },
+  {
+    "id": "1775542063602",
+    "questionId": "c9_q6",
+    "categoryId": "c9",
+    "submittedAnswer": "12月",
+    "isCorrect": true,
+    "timestamp": 1775542063602
+  },
+  {
+    "id": "1775542074194",
+    "questionId": "c9_q7",
+    "categoryId": "c9",
+    "submittedAnswer": "471806 5128.33",
+    "isCorrect": true,
+    "timestamp": 1775542074194
+  },
+  {
+    "id": "1775542083472",
+    "questionId": "c9_q8",
+    "categoryId": "c9",
+    "submittedAnswer": "2/14 410\n2/18 341\n2/19 431\n2/20 423\n2/21 404\n2/22 455\n2/27 491\n",
+    "isCorrect": true,
+    "timestamp": 1775542083472
+  },
+  {
+    "id": "1775542093720",
+    "questionId": "c9_q9",
+    "categoryId": "c9",
+    "submittedAnswer": "12月 161138.87\n10月 158033.26\n11月 157320.60\n9月 138169.43\n",
+    "isCorrect": true,
+    "timestamp": 1775542093720
+  },
+  {
+    "id": "1775542100809",
+    "questionId": "c9_q10",
+    "categoryId": "c9",
+    "submittedAnswer": "47678",
+    "isCorrect": true,
+    "timestamp": 1775542100809
+  },
+  {
+    "id": "1775542112814",
+    "questionId": "c9_q11",
+    "categoryId": "c9",
+    "submittedAnswer": "1月\n1月 1069.39\n2月 304.86\n3月 1012.97\n",
+    "isCorrect": true,
+    "timestamp": 1775542112814
+  },
+  {
+    "id": "1775542125280",
+    "questionId": "c9_q12",
+    "categoryId": "c9",
+    "submittedAnswer": "11月 3631.46\n12月 2957.99\n",
+    "isCorrect": true,
+    "timestamp": 1775542125280
+  },
+  {
+    "id": "1775542137756",
+    "questionId": "c9_q13",
+    "categoryId": "c9",
+    "submittedAnswer": "1月 23\n2月 28\n",
+    "isCorrect": true,
+    "timestamp": 1775542137756
+  },
+  {
+    "id": "1775542149882",
+    "questionId": "c9_q14",
+    "categoryId": "c9",
+    "submittedAnswer": "86",
+    "isCorrect": true,
+    "timestamp": 1775542149882
+  },
+  {
+    "id": "1775542154030",
+    "questionId": "c9_q15",
+    "categoryId": "c9",
+    "submittedAnswer": "398",
+    "isCorrect": true,
+    "timestamp": 1775542154030
+  },
+  {
+    "id": "1775542162953",
+    "questionId": "c9_q16",
+    "categoryId": "c9",
+    "submittedAnswer": "2/13 193198\n2/14 201274\n2/19 198136\n2/21 193938\n2/22 203249\n",
+    "isCorrect": true,
+    "timestamp": 1775542162953
+  },
+  {
+    "id": "1775542173961",
+    "questionId": "c9_q17",
+    "categoryId": "c9",
+    "submittedAnswer": "松山機場小計",
+    "isCorrect": true,
+    "timestamp": 1775542173961
+  },
+  {
+    "id": "1775542181912",
+    "questionId": "c9_q18",
+    "categoryId": "c9",
+    "submittedAnswer": "9/29 入境 31335",
+    "isCorrect": true,
+    "timestamp": 1775542181912
+  },
+  {
+    "id": "1775542189383",
+    "questionId": "c9_q19",
+    "categoryId": "c9",
+    "submittedAnswer": "88.88% 31.87%",
+    "isCorrect": true,
+    "timestamp": 1775542189383
+  },
+  {
+    "id": "1775542196846",
+    "questionId": "c9_q20",
+    "categoryId": "c9",
+    "submittedAnswer": "2/22 75.51%\n2/14 78.51%\n2/19 72.83%\n",
+    "isCorrect": true,
+    "timestamp": 1775542196846
+  }
+]
