@@ -7,6 +7,15 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- 引入輕量的彩帶特效套件 -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  
+  <!-- [新增] 引入解析 CSV 工具 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- [新增] 引入 Jspreadsheet (類似 Excel 的網頁套件) -->
+  <script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
+  <script src="https://jsuites.net/v4/jsuites.js"></script>
+  <link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css" />
+  <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
+
   <style>
     /* ---------------------------------------------------------------------- */
     /* 自定義精緻動畫與特效 */
@@ -126,6 +135,9 @@
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
       background-color: rgba(100, 116, 139, 0.8);
     }
+    
+    /* 修正 Jspreadsheet 預設樣式避免跑版 */
+    .jexcel_container { font-family: sans-serif; }
   </style>
 </head>
 <body class="bg-slate-900 text-slate-200 font-sans overflow-hidden selection:bg-blue-500/30 selection:text-blue-200">
@@ -491,18 +503,24 @@
     const _today = new Date();
     const currentRocDate = `${_today.getFullYear() - 1911}/${_today.getMonth() + 1}/${_today.getDate()}`;
 
-    // 【防呆機制】建立最高級別的字串正規化函數，徹底消除使用者從 Excel/終端機 複製貼上時產生的 Tab(\t)、多餘空白與換行差異
     const normalizeText = (str) => {
       if (!str) return '';
       return str
         .replace(/\r\n/g, '\n')
         .split('\n')
-        .map(line => line.trim().replace(/\s+/g, ' ')) // 壓縮所有連續空白與 Tab 為單一空白
+        .map(line => line.trim().replace(/\s+/g, ' ')) 
         .filter(line => line.length > 0)
         .join('\n');
     };
 
     const CATEGORIES = [
+      {
+        id: 'data_viewer',
+        title: '📊 雲端試算表 (支援公式)',
+        fullName: '線上資料檢視與處理工具',
+        isDataViewer: true,
+        questions: []
+      },
       {
         id: 'preface',
         title: '前言與環境須知',
@@ -612,14 +630,11 @@
     ];
 
     async function verifyAnswer(questionId, userInput, correctAnswer) {
-      // 系統測試題驗證：直接比對當下時間產生的民國日期
       if (questionId === 'preface_q1') {
         const t = new Date();
         const expected = `${t.getFullYear() - 1911}/${t.getMonth() + 1}/${t.getDate()}`;
         return normalizeText(userInput) === normalizeText(expected);
       }
-      
-      // 無加密驗證：直接將輸入值與正確答案套用相同的防呆正規化後比較
       if (!correctAnswer) return false;
       return normalizeText(userInput) === normalizeText(correctAnswer);
     }
@@ -651,6 +666,7 @@
     };
 
     let app, auth, db, globalAppId;
+    let currentSpreadsheet = null; // [新增] 全域變數儲存當前試算表實體
 
     function isCategoryCompleted(categoryId) {
       const category = CATEGORIES.find(c => c.id === categoryId);
@@ -860,6 +876,89 @@
       });
     };
 
+    // ----------------------------------------------------------------------
+    // [新增] 雲端試算表初始化邏輯
+    // ----------------------------------------------------------------------
+    async function initDataViewer() {
+      const selector = document.getElementById('file-selector');
+      const container = document.getElementById('spreadsheet-container');
+
+      try {
+        // 1. 抓取 JSON 檔案清單
+        const res = await fetch('./data/file_list.json');
+        if (!res.ok) throw new Error('找不到 file_list.json');
+        const fileList = await res.json();
+
+        // 2. 建立下拉選單
+        if(fileList.files && fileList.files.length > 0) {
+           selector.innerHTML = '<option value="">-- 請選擇資料集 --</option>' +
+             fileList.files.map(f => `<option value="${f}">${f}</option>`).join('');
+        } else {
+           selector.innerHTML = '<option value="">(檔案清單為空)</option>';
+        }
+
+        // 3. 監聽選擇事件
+        selector.addEventListener('change', async (e) => {
+          const fileName = e.target.value;
+          if (!fileName) return;
+
+          container.innerHTML = '<div class="text-slate-600 p-10 text-center font-bold animate-pulse text-lg">檔案下載與解析中，請稍候...</div>';
+
+          try {
+            // 抓取實際的 CSV 檔案
+            const csvRes = await fetch(`./data/${fileName}`);
+            if (!csvRes.ok) throw new Error('讀取 CSV 失敗');
+            const csvText = await csvRes.text();
+
+            // 使用 PapaParse 將 CSV 轉為二維陣列
+            Papa.parse(csvText, {
+              skipEmptyLines: true,
+              complete: function(results) {
+                container.innerHTML = ''; 
+                
+                if (currentSpreadsheet) {
+                  currentSpreadsheet.destroy(); // 銷毀舊的表格避免記憶體洩漏
+                }
+
+                // 提取第一列當作表頭 (Header)
+                const data = results.data;
+                let headers = [];
+                if (data.length > 0) {
+                  headers = data[0].map(title => ({ title: title, width: 120 }));
+                  data.shift(); 
+                }
+
+                // 初始化 Jspreadsheet
+                currentSpreadsheet = jspreadsheet(container, {
+                  data: data,
+                  columns: headers,
+                  search: true,        // 開啟右上角搜尋框(具備篩選功能)
+                  pagination: 50,      // 開啟分頁，避免資料量過大卡頓
+                  columnSorting: true, // 點擊表頭排序
+                  tableOverflow: true,
+                  tableWidth: "100%",
+                  tableHeight: "550px", // 固定高度並產生內部捲軸
+                  wordWrap: true
+                });
+              }
+            });
+          } catch (err) {
+            container.innerHTML = `<div class="text-rose-500 p-8 font-bold text-center">載入失敗：${err.message}</div>`;
+          }
+        });
+      } catch (err) {
+        console.warn(err);
+        selector.innerHTML = '<option value="">⚠️ 無法自動取得檔案清單</option>';
+        container.innerHTML = `
+          <div class="text-slate-600 p-10 text-center bg-slate-100 rounded-lg">
+            <p class="font-bold text-lg mb-2 text-rose-500">無法自動取得檔案清單</p>
+            <p class="text-base text-slate-700">請確認您的 <code>./data/</code> 目錄下是否已建立 <code>file_list.json</code> 檔案。</p>
+            <p class="text-sm mt-4 text-slate-500">（註：若是本機直接打開 HTML 檔而未透過伺服器，可能會因 CORS 跨域限制導致讀取失敗）</p>
+          </div>
+        `;
+      }
+    }
+
     function renderMainContent() {
       const category = CATEGORIES.find(c => c.id === state.activeCategoryId) || CATEGORIES[0];
       document.getElementById('category-title').textContent = category.fullName;
@@ -871,6 +970,51 @@
       triggerFadeInAnimation();
 
       const descEl = document.getElementById('category-desc');
+
+      // ----------------------------------------------------------------------
+      // [新增] 攔截「雲端試算表」類別的渲染邏輯
+      // ----------------------------------------------------------------------
+      if (category.isDataViewer) {
+        descEl.classList.add('hidden');
+        filterContainer.innerHTML = '';
+        
+        const viewerBlock = document.createElement('div');
+        viewerBlock.className = 'bg-slate-900/40 backdrop-blur-xl rounded-3xl border border-white/5 p-6 md:p-8 text-slate-200 mb-10 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] glass-highlight relative overflow-hidden';
+        viewerBlock.innerHTML = `
+          <div class="glow-blob w-72 h-72 bg-blue-600/10 -top-20 -left-20"></div>
+          
+          <div class="relative z-10">
+            <div class="mb-6 flex flex-col md:flex-row md:items-center gap-4">
+               <label class="font-bold text-blue-400 text-lg flex items-center gap-2">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                 選擇要載入的檔案：
+               </label>
+               <select id="file-selector" class="bg-[#030712] text-slate-200 p-3 rounded-xl border border-slate-700/50 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 outline-none flex-1 max-w-md custom-scrollbar shadow-inner transition-all cursor-pointer hover:border-slate-500 text-base">
+                  <option value="">讀取檔案清單中...</option>
+               </select>
+            </div>
+            
+            <div class="bg-gradient-to-r from-blue-900/20 to-teal-900/10 border border-blue-500/20 p-5 rounded-2xl mb-8 shadow-inner">
+              <p class="text-sm md:text-base text-blue-200/90 leading-relaxed font-medium">
+                <span class="text-xl inline-block mb-2 animate-bounce">💡</span> <strong class="text-blue-300">操作提示：</strong><br>
+                1. 支援點擊表頭進行「排序」。右上角放大鏡可進行全表「搜尋/篩選」。<br>
+                2. 雙擊儲存格可修改數值，並支援基礎 Excel 公式，例如輸入 <code class="bg-black/40 text-teal-300 px-2 py-0.5 rounded-md border border-white/10 font-mono mx-1">=SUM(A1:A10)</code> 或 <code class="bg-black/40 text-teal-300 px-2 py-0.5 rounded-md border border-white/10 font-mono mx-1">=C2*D2</code>。<br>
+                3. 您也可以直接從本機的 Excel 或 CSV 中選取資料，並使用 <kbd class="bg-black/40 px-1.5 py-0.5 rounded border border-white/10 font-mono">Ctrl+C</kbd> / <kbd class="bg-black/40 px-1.5 py-0.5 rounded border border-white/10 font-mono">Ctrl+V</kbd> 貼上至下方表格。
+              </p>
+            </div>
+            
+            <!-- 試算表容器 (Jspreadsheet 預設為白底，故用 bg-white 與 text-black 包覆確保顯示正常) -->
+            <div class="bg-white text-black p-2 rounded-xl overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.3)]">
+              <div id="spreadsheet-container" class="w-full"></div>
+            </div>
+          </div>
+        `;
+        container.appendChild(viewerBlock);
+        
+        // 呼叫初始化試算表的函式
+        initDataViewer();
+        return; // 終止後續題目的渲染
+      }
 
       if (category.isPreface) {
         descEl.classList.add('hidden');
@@ -906,7 +1050,7 @@
                 <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full"></div>
                 <p class="font-bold text-blue-300 mb-5 flex items-center gap-3 text-xl"><span class="animate-pulse">💡</span> 雙平台練習建議</p>
                 <ul class="list-disc list-inside space-y-3 ml-2 text-base md:text-lg">
-                  <li><strong class="text-white">Windows：</strong> 可以使用 Excel 或其他數據分析軟體進行整理與計算。</li>
+                  <li><strong class="text-white">Windows：</strong> 可以使用 Excel 或直接使用本站左側的「雲端試算表」工具進行整理與計算。</li>
                   <li><strong class="text-white">Linux：</strong> 建議直接使用終端機介面（Terminal）搭配指令（例如：<code class="text-pink-400 bg-pink-400/10 px-2 py-0.5 rounded font-mono">awk</code>, <code class="text-pink-400 bg-pink-400/10 px-2 py-0.5 rounded font-mono">sed</code>, <code class="text-pink-400 bg-pink-400/10 px-2 py-0.5 rounded font-mono">grep</code>）操作。</li>
                 </ul>
                 <p class="mt-6 text-base text-blue-200/60 border-t border-blue-500/20 pt-4 font-medium tracking-wide">強烈建議兩種環境與方式都親自練習一次，以熟悉不同情境的資料處理手法！</p>
@@ -1065,7 +1209,6 @@
         container.appendChild(qDiv);
 
         const textarea = document.getElementById(`input-${q.id}`);
-        // 賦予草稿並觸發自適應高度
         textarea.value = savedDraft;
         if (savedDraft) {
           setTimeout(() => {
@@ -1083,7 +1226,6 @@
         const btnText = btn.querySelector('.btn-text');
         const clearBtn = document.getElementById(`clear-${q.id}`);
 
-        // 摺疊展開作答紀錄邏輯
         if (toggleHistoryBtn) {
           toggleHistoryBtn.addEventListener('click', () => {
             const isCollapsed = historyListWrapper.style.maxHeight === '0px';
@@ -1099,16 +1241,13 @@
           });
         }
 
-        // 初始化按鈕狀態
         btn.disabled = textarea.value.trim().length === 0;
 
         textarea.addEventListener('input', (e) => {
           const val = e.target.value;
           btn.disabled = val.trim().length === 0;
-          // 打字即存草稿
           localStorage.setItem(`draft_${q.id}`, val);
           
-          // 自動延展輸入框高度
           e.target.style.height = 'auto';
           e.target.style.height = (e.target.scrollHeight) + 2 + 'px';
         });
@@ -1128,7 +1267,6 @@
           textarea.focus();
         });
 
-        // 清空歷史紀錄的連點確認機制
         let confirmTimeout;
         if (clearHistoryBtn) {
           clearHistoryBtn.addEventListener('click', async function() {
@@ -1174,7 +1312,6 @@
           btnText.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>驗證中...`;
           textarea.disabled = true;
 
-          // 更新驗證函數參數，從正確的雜湊改為正確的明文解答 (q.answer)
           const isCorrect = await verifyAnswer(q.id, val, q.answer);
           
           card.classList.remove('animate-flash-correct', 'animate-shake-error');
@@ -1189,7 +1326,7 @@
 
           localStorage.removeItem(`draft_${q.id}`);
           textarea.value = '';
-          textarea.style.height = 'auto'; // 恢復預設高度
+          textarea.style.height = 'auto';
           textarea.disabled = false;
           btnText.innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-80"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -1245,7 +1382,6 @@
         const listDiv = document.getElementById(`history-list-${q.id}`);
         const countSpan = document.getElementById(`history-count-${q.id}`);
         
-        // 確保展開狀態正確 (若剛答題，確保是展開的)
         const historyListWrapper = document.getElementById(`history-list-wrapper-${q.id}`);
         const historyChevron = document.getElementById(`history-chevron-${q.id}`);
 
@@ -1335,7 +1471,6 @@
         console.error("儲存失敗:", err);
       }
       
-      // 送出後確保列表是展開的
       const historyListWrapper = document.getElementById(`history-list-wrapper-${questionId}`);
       const historyChevron = document.getElementById(`history-chevron-${questionId}`);
       if (historyListWrapper && historyChevron) {
@@ -1428,7 +1563,6 @@
 
       setupImportExport();
 
-      // [注意] 移除 initAnswerHashes 的載入邏輯
       try {
         await initLocalDB();
         const localData = await loadFromLocal();
