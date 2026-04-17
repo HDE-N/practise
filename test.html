@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>資料分析練習平台 (旗艦三欄版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入輕量的彩帶特效套件 -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  
+  <!-- 解析與生成 CSV 工具 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- Jspreadsheet (類似 Excel 的網頁套件) -->
+  <script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
+  <script src="https://jsuites.net/v4/jsuites.js"></script>
+  <link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css" />
+  <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
+  
+  <!-- Chart.js 圖表引擎 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* ---------------------------------------------------------------------- */
+    /* 自定義精緻動畫與特效 (完美還原) */
+    /* ---------------------------------------------------------------------- */
+    @keyframes bgPan {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .animate-bg-pan {
+      background-size: 200% 200%;
+      animation: bgPan 15s ease-in-out infinite;
+    }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in-up { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    @keyframes slideInX { from { opacity: 0; transform: translateX(-15px); } to { opacity: 1; transform: translateX(0); } }
+    .animate-slide-in-x { animation: slideInX 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+    /* 流光按鈕特效 */
+    .btn-shine { position: relative; overflow: hidden; }
+    .btn-shine::after {
+      content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+      background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.3), transparent);
+      transform: skewX(-20deg); transition: all 0.6s ease;
+    }
+    .btn-shine:hover::after { left: 150%; }
+
+    @keyframes flashCorrect { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); border-color: rgba(16, 185, 129, 1); transform: scale(1); } 30% { transform: scale(1.01); } 100% { box-shadow: 0 0 40px 15px rgba(16, 185, 129, 0); border-color: #334155; transform: scale(1); } }
+    .animate-flash-correct { animation: flashCorrect 1.2s cubic-bezier(0.16, 1, 0.3, 1); }
+
+    @keyframes shakeError { 0%, 100% { transform: translateX(0); border-color: #334155; box-shadow: none; } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); border-color: rgba(225, 29, 72, 0.8); box-shadow: 0 0 15px rgba(225, 29, 72, 0.3); } 20%, 40%, 60%, 80% { transform: translateX(5px); border-color: rgba(225, 29, 72, 0.8); box-shadow: 0 0 15px rgba(225, 29, 72, 0.3); } }
+    .animate-shake-error { animation: shakeError 0.5s ease-in-out; }
+
+    .glass-highlight::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent); z-index: 10; }
+    .glow-blob { position: absolute; filter: blur(80px); z-index: -1; opacity: 0.4; border-radius: 50%; animation: bgPan 10s infinite alternate; }
+
+    @keyframes textGradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    .animate-text-gradient { background-size: 200% auto; animation: textGradient 4s linear infinite; }
+
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(71, 85, 105, 0.5); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(100, 116, 139, 0.8); }
+    
+    /* ---------------------------------------------------------------------- */
+    /* 三欄排版過渡動畫與 IDE 佈局設定 */
+    /* ---------------------------------------------------------------------- */
+    /* 左側邊欄 */
+    #sidebar { transition: transform 0.3s ease, margin 0.3s ease; width: 18rem; }
+    .sidebar-closed { margin-left: -18rem; } 
+    @media (max-width: 768px) { #sidebar { position: absolute; left: 0; top: 0; bottom: 0; z-index: 50; } .sidebar-closed { margin-left: 0; transform: translateX(-100%); } }
+
+    /* 右側試算表 */
+    #right-panel { transition: transform 0.3s ease, margin 0.3s ease; width: 45vw; }
+    .spreadsheet-closed { margin-right: -45vw; }
+    @media (max-width: 1280px) { #right-panel { width: 50vw; } .spreadsheet-closed { margin-right: -50vw; } }
+    @media (max-width: 1024px) { #right-panel { position: absolute; right: 0; top: 0; bottom: 0; width: 100%; z-index: 45; } .spreadsheet-closed { margin-right: 0; transform: translateX(100%); } }
+
+    /* ---------------------------------------------------------------------- */
+    /* Jspreadsheet 深色主題客製化覆寫 (唯讀模式)                           */
+    /* ---------------------------------------------------------------------- */
+    .jexcel_container { font-family: inherit !important; background-color: #0f172a !important; border: none !important; }
+    .jexcel > thead > tr > td { background-color: #1e293b !important; color: #cbd5e1 !important; border-bottom: 1px solid #334155 !important; border-right: 1px solid #334155 !important; font-weight: bold; padding: 10px !important; }
+    .jexcel > tbody > tr > td { background-color: #0f172a !important; color: #94a3b8 !important; border-bottom: 1px solid #1e293b !important; border-right: 1px solid #1e293b !important; cursor: default !important; }
+    .jexcel > tbody > tr:nth-child(even) > td { background-color: #0b1120 !important; }
+    .jexcel > tbody > tr > td.readonly { background-color: #1e293b !important; color: #64748b !important; }
+    .jexcel > tbody > tr > td.highlight { background-color: rgba(59, 130, 246, 0.2) !important; color: #e2e8f0 !important; }
+    .jexcel > tbody > tr > td.highlight-left { border-left: 2px solid #3b82f6 !important; }
+    .jexcel > tbody > tr > td.highlight-right { border-right: 2px solid #3b82f6 !important; }
+    .jexcel > tbody > tr > td.highlight-top { border-top: 2px solid #3b82f6 !important; }
+    .jexcel > tbody > tr > td.highlight-bottom { border-bottom: 2px solid #3b82f6 !important; }
+    
+    .jexcel_toolbar, .jexcel_search { display: none !important; }
+    .jexcel_pagination { background-color: #1e293b !important; border-top: 1px solid #334155 !important; color: #94a3b8 !important; }
+    .jcontextmenu { background-color: #1e293b !important; border: 1px solid #475569 !important; box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important; }
+    .jcontextmenu > div { color: #cbd5e1 !important; }
+    .jcontextmenu > div:hover { background-color: #3b82f6 !important; color: white !important;}
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-200 font-sans overflow-hidden selection:bg-blue-500/30 selection:text-blue-200">
+
+  <!-- 圖表彈出視窗 -->
+  <div id="chart-modal" class="hidden fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 md:p-8 transition-opacity">
+      <div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-5xl shadow-2xl overflow-hidden flex flex-col h-full max-h-[85vh]">
+          <div class="flex items-center justify-between p-5 border-b border-slate-700 bg-slate-900/50">
+              <h3 class="text-xl font-bold text-fuchsia-400 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="4" height="11" rx="1"/><rect x="15" y="5" width="4" height="16" rx="1"/></svg>
+                  資料視覺化結果
+              </h3>
+              <button onclick="document.getElementById('chart-modal').classList.add('hidden')" class="text-slate-400 hover:text-rose-400 focus:outline-none transition-colors p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+          </div>
+          <div class="p-6 flex-1 bg-slate-900/20 relative min-h-0">
+              <canvas id="visual-chart"></canvas>
+          </div>
+          <div class="p-4 border-t border-slate-700 bg-slate-900/50 text-sm text-slate-400 flex justify-between items-center">
+              <span>💡 提示：若資料橫跨類別過多，為求美觀僅顯示加總最高的前 50 項。數據均基於您<strong class="text-slate-300">當前已篩選</strong>之結果。</span>
+              <button onclick="exportChart()" class="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 bg-emerald-900/30 px-3 py-1.5 rounded-lg border border-emerald-500/30 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  匯出 PNG 圖片
+              </button>
+          </div>
+      </div>
+  </div>
+
+  <!-- 載入中畫面 -->
+  <div id="loading-screen" class="flex h-screen w-full items-center justify-center bg-[#0B1120] text-slate-400 z-[100] fixed inset-0 transition-opacity duration-500">
+    <div class="flex flex-col items-center gap-4">
+      <div class="relative w-12 h-12">
+        <div class="absolute inset-0 rounded-full border-t-2 border-blue-500 animate-spin"></div>
+        <div class="absolute inset-2 rounded-full border-r-2 border-teal-400 animate-[spin_1.5s_linear_infinite_reverse]"></div>
+      </div>
+      <p class="tracking-widest text-sm font-medium animate-pulse text-blue-400">安全環境建置與系統載入中...</p>
+    </div>
+  </div>
+
+  <!-- 主應用程式 (Flex 三欄架構) -->
+  <div id="app" class="hidden flex h-screen w-full bg-gradient-to-br from-slate-900 via-[#0a101f] to-slate-800 animate-bg-pan overflow-hidden relative">
+    
+    <!-- 全域星空幾何背景 -->
+    <canvas id="geom-canvas" class="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-100"></canvas>
+    
+    <!-- 行動版側邊欄遮罩 -->
+    <div id="sidebar-overlay" class="hidden md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"></div>
+
+    <!-- 慶祝與系統提示 Toast -->
+    <div id="celebration-toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-[100] transition-all duration-700 ease-out opacity-0 translate-y-[-20px] pointer-events-none scale-90">
+      <div class="bg-emerald-900/90 backdrop-blur-xl border border-emerald-500/50 text-emerald-100 px-7 py-5 rounded-2xl shadow-[0_0_40px_rgba(16,185,129,0.4)] flex items-center gap-5">
+        <span class="text-4xl animate-bounce drop-shadow-lg">🎉</span>
+        <div>
+          <h4 class="font-bold text-xl text-emerald-300 tracking-wide">太棒了，恭喜過關！</h4>
+          <p class="text-base text-emerald-200/80 mt-1">您已正確回答本單元的所有題目！</p>
+        </div>
+      </div>
+    </div>
+    <div id="system-toast" class="fixed bottom-6 right-6 z-[110] transition-all duration-500 transform translate-y-20 opacity-0 pointer-events-none">
+      <div id="system-toast-content" class="bg-slate-800/90 backdrop-blur-md border border-slate-600 text-slate-200 px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3"></div>
+    </div>
+
+    <!-- [左欄] 題庫側邊欄 -->
+    <aside id="sidebar" class="sidebar-closed shrink-0 h-full border-r border-slate-700/50 bg-slate-900/60 backdrop-blur-xl flex flex-col z-50">
+      <div class="h-16 flex items-center justify-between px-6 border-b border-slate-700/50 shrink-0">
+        <h1 class="font-bold text-xl text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-teal-300 to-indigo-400 flex items-center gap-2 drop-shadow-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          題庫清單
+        </h1>
+        <button onclick="toggleSidebar(false)" class="md:hidden text-slate-400 hover:text-white transition-colors">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="category-list" class="flex-1 overflow-y-auto py-5 px-4 space-y-2 custom-scrollbar"></div>
+      <div id="status-bar" class="p-4 border-t border-slate-700/50 bg-slate-900/80 text-sm flex flex-col gap-3">
+        <div id="sync-status" class="flex items-center gap-1.5 font-medium justify-center text-slate-300"></div>
+        <div class="flex gap-2">
+          <button id="export-btn" class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-xs rounded-lg border border-slate-600 transition-all flex items-center justify-center gap-1.5">匯出</button>
+          <button class="flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 text-xs rounded-lg border border-slate-600 relative overflow-hidden flex items-center justify-center gap-1.5">匯入<input type="file" id="import-file" class="absolute inset-0 opacity-0 cursor-pointer" accept=".json"></button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- [中欄] 題目主畫面 (背景透明，透出星空畫布) -->
+    <main id="middle-panel" class="flex-1 flex flex-col min-w-0 h-full relative z-10 bg-transparent">
+        
+        <!-- 中欄頂部導覽列 (IDE 操作台) -->
+        <header class="h-16 flex items-center justify-between px-4 lg:px-6 border-b border-slate-700/50 bg-slate-900/60 backdrop-blur-xl shrink-0">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors focus:outline-none" title="切換題庫選單">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </button>
+                <h2 id="topbar-title" class="font-bold text-lg md:text-xl text-slate-200 truncate hidden sm:block">載入中...</h2>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <!-- 切換試算表按鈕 -->
+                <button onclick="toggleSpreadsheet()" class="btn-shine px-5 py-2.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/40 rounded-xl font-bold text-sm transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(59,130,246,0.15)] focus:outline-none">
+                    📊 <span class="hidden sm:inline">雲端試算表面板</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- 中欄滾動內容區 -->
+        <div id="main-scroll-container" class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 relative">
+            <div id="main-content-wrapper" class="max-w-full mx-auto pb-24 transition-all duration-500">
+                
+                <!-- 單元標題區 -->
+                <div class="mb-10 animate-fade-in-up">
+                    <h2 class="text-sm font-bold text-blue-400 tracking-widest uppercase mb-3 flex items-center gap-2 drop-shadow-sm">
+                        <span class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping"></span><span class="w-2.5 h-2.5 rounded-full bg-blue-400 absolute"></span>
+                        正在練習
+                    </h2>
+                    <h1 id="category-title" class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-teal-200 to-indigo-300 animate-text-gradient break-words whitespace-pre-line leading-tight drop-shadow-md">載入中...</h1>
+                    <p id="category-desc" class="text-base md:text-lg text-slate-400 mt-4 font-medium">請仔細閱讀題目，將程式執行或人工計算的結果填入下方。答案必須完全一致才能判對。</p>
+                    <div id="filter-container"></div>
+                </div>
+                
+                <!-- 題目卡片渲染區 -->
+                <div id="questions-container" class="space-y-10"></div>
+            </div>
+
+            <!-- 一鍵回到頂部按鈕 -->
+            <button id="back-to-top" class="fixed bottom-6 right-6 lg:right-[48vw] bg-blue-600/80 hover:bg-blue-500 text-white p-3.5 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)] opacity-0 pointer-events-none transition-all duration-300 z-[90] backdrop-blur-sm active:scale-95 focus:outline-none border border-white/10 hidden lg:block">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+            </button>
+        </div>
+    </main>
+
+    <!-- [右欄] 雲端試算表分析面板 (獨立常駐區) -->
+    <aside id="right-panel" class="spreadsheet-closed shrink-0 h-full border-l border-slate-700/50 bg-slate-900/80 backdrop-blur-2xl flex flex-col z-40 relative">
+        <header class="h-16 flex items-center justify-between px-6 border-b border-slate-700/50 bg-slate-900/50 shrink-0">
+            <h2 class="font-bold text-lg text-blue-300 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                雲端分析面板
+            </h2>
+            <button onclick="toggleSpreadsheet(false)" class="p-1.5 text-slate-400 hover:text-rose-400 bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors focus:outline-none">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </header>
+
+        <!-- 面板內容 -->
+        <div class="flex-1 overflow-y-auto custom-scrollbar p-5 flex flex-col gap-5 relative">
+            
+            <div class="flex flex-col md:flex-row md:items-center gap-3 bg-[#0a101f]/60 p-4 rounded-xl border border-slate-700/50">
+               <span class="font-bold text-blue-400 shrink-0">📂 載入資料：</span>
+               <select id="file-selector" class="bg-[#0f172a] text-slate-200 p-2.5 rounded-lg border border-slate-600 focus:border-blue-500 outline-none flex-1 max-w-full text-sm font-medium transition-colors"></select>
+            </div>
+            
+            <div id="custom-toolbar" class="hidden flex flex-col gap-4 shrink-0">
+                <!-- 工具列按鈕群 -->
+                <div class="flex flex-wrap items-center gap-2.5 border-b border-slate-700/50 pb-5">
+                    <button onclick="toggleActivePanel('filter-panel')" class="btn-shine px-4 py-2 bg-blue-900/30 text-blue-300 text-sm font-bold rounded-lg border border-blue-500/30 hover:bg-blue-600/40 transition-all flex items-center gap-1.5">篩選</button>
+                    <button onclick="toggleActivePanel('sort-panel')" class="btn-shine px-4 py-2 bg-indigo-900/30 text-indigo-300 text-sm font-bold rounded-lg border border-indigo-500/30 hover:bg-indigo-600/40 transition-all flex items-center gap-1.5">排序</button>
+                    <button onclick="toggleActivePanel('groupby-panel')" class="btn-shine px-4 py-2 bg-amber-900/30 text-amber-300 text-sm font-bold rounded-lg border border-amber-500/30 hover:bg-amber-600/40 transition-all flex items-center gap-1.5">樞紐</button>
+                    <button onclick="toggleActivePanel('math-panel')" class="btn-shine px-4 py-2 bg-lime-900/30 text-lime-300 text-sm font-bold rounded-lg border border-lime-500/30 hover:bg-lime-600/40 transition-all flex items-center gap-1.5">計算</button>
+                    <button onclick="toggleActivePanel('extract-panel')" class="btn-shine px-4 py-2 bg-green-900/30 text-green-300 text-sm font-bold rounded-lg border border-green-500/30 hover:bg-green-600/40 transition-all flex items-center gap-1.5">萃取</button>
+                    <button onclick="toggleActivePanel('stats-panel')" class="btn-shine px-4 py-2 bg-teal-900/30 text-teal-300 text-sm font-bold rounded-lg border border-teal-500/30 hover:bg-teal-600/40 transition-all flex items-center gap-1.5">統計</button>
+                    <button onclick="toggleActivePanel('chart-panel')" class="btn-shine px-4 py-2 bg-fuchsia-900/30 text-fuchsia-300 text-sm font-bold rounded-lg border border-fuchsia-500/30 hover:bg-fuchsia-600/40 transition-all flex items-center gap-1.5">圖表</button>
+                    
+                    <div class="ml-auto flex gap-2 w-full md:w-auto mt-2 md:mt-0">
+                        <button onclick="resetData()" class="flex-1 md:flex-none px-4 py-2 text-rose-400 bg-rose-900/20 hover:bg-rose-900/40 border border-rose-500/20 rounded-lg text-sm font-bold transition-colors">清除條件</button>
+                        <button onclick="exportCurrentData()" class="flex-1 md:flex-none px-4 py-2 text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/40 border border-emerald-500/20 rounded-lg text-sm font-bold transition-colors">匯出CSV</button>
+                    </div>
+                </div>
+
+                <!-- 各功能操作面板 (展開區) -->
+                <div id="filter-panel" class="hidden bg-[#060b14] border border-blue-500/40 p-5 rounded-xl shadow-inner text-sm animate-fade-in-up">
+                    <h4 class="text-blue-300 font-bold mb-4 text-base">設定多重篩選條件</h4>
+                    <div id="filter-rules-list" class="space-y-3 mb-4"></div>
+                    <div class="flex justify-between mt-4 pt-4 border-t border-blue-900/50">
+                        <button onclick="addFilterRuleRow(document.getElementById('stat-col-select').innerHTML, false)" class="text-blue-400 hover:text-blue-300 font-bold px-2 py-1 rounded hover:bg-blue-900/30">+ 新增條件</button>
+                        <button onclick="applyAdvancedFilter()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-bold shadow-md transition-colors">執行篩選</button>
+                    </div>
+                </div>
+
+                <div id="sort-panel" class="hidden bg-[#060b14] border border-indigo-500/40 p-5 rounded-xl shadow-inner text-sm animate-fade-in-up">
+                    <h4 class="text-indigo-300 font-bold mb-4 text-base">設定多重排序優先級</h4>
+                    <div id="sort-rules-list" class="space-y-3 mb-4"></div>
+                    <div class="flex justify-between mt-4 pt-4 border-t border-indigo-900/50">
+                        <button onclick="addSortRuleRow(document.getElementById('stat-col-select').innerHTML, false)" class="text-indigo-400 hover:text-indigo-300 font-bold px-2 py-1 rounded hover:bg-indigo-900/30">+ 新增次要排序</button>
+                        <button onclick="applyAdvancedSort()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white font-bold shadow-md transition-colors">執行排序</button>
+                    </div>
+                </div>
+
+                <div id="groupby-panel" class="hidden bg-[#060b14] border border-amber-500/40 p-5 rounded-xl shadow-inner text-sm animate-fade-in-up">
+                    <h4 class="text-amber-300 font-bold mb-4 text-base">分組聚合 (樞紐分析)</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="flex flex-col gap-1.5"><label class="text-amber-400/80 font-bold">分類依據</label><select id="groupby-col-select" class="bg-[#0f172a] text-slate-200 p-2.5 rounded-lg border border-slate-600 focus:border-amber-500"></select></div>
+                        <div class="flex flex-col gap-1.5"><label class="text-amber-400/80 font-bold">計算目標</label><select id="groupby-val-select" class="bg-[#0f172a] text-slate-200 p-2.5 rounded-lg border border-slate-600 focus:border-amber-500"></select></div>
+                        <div class="flex flex-col gap-1.5"><label class="text-amber-400/80 font-bold">聚合方式</label><select id="groupby-op-select" class="bg-[#0f172a] text-slate-200 p-2.5 rounded-lg border border-slate-600 focus:border-amber-500">
+                            <option value="sum">加總 (Sum)</option><option value="avg">平均 (Avg)</option><option value="count">計數 (Count)</option><option value="max">最大 (Max)</option><option value="min">最小 (Min)</option>
+                        </select></div>
+                    </div>
+                    <button onclick="applyGroupBy()" class="mt-4 w-full py-2.5 bg-amber-600 hover:bg-amber-500 rounded-lg text-white font-bold shadow-md transition-colors">產生新分析表</button>
+                </div>
+
+                <div id="math-panel" class="hidden bg-[#060b14] border border-lime-500/40 p-5 rounded-xl shadow-inner text-sm animate-fade-in-up">
+                    <h4 class="text-lime-300 font-bold mb-4 text-base">新增衍生欄位 (四則運算)</h4>
+                    <div class="flex flex-col gap-3">
+                        <div class="flex items-center gap-2">
+                            <select id="math-col1" class="flex-1 bg-[#0f172a] text-slate-200 p-2.5 rounded-lg border border-slate-600 focus:border-lime-500"></select>
+                            <select id="math-op" class="w-16 shrink-0 bg-[#0f172a] text-lime-300 font-bold text-lg p-2.5 rounded-lg border border-slate-600 text-center focus:border-lime-500"><option value="+">＋</option><option value="-">－</option><option value="*">×</option><option value="/">÷</option></select>
+                            <select id="math-col2" class="flex-1 bg-[#0f172a] text-slate-200 p-2.5 rounded-lg border border-slate-600 focus:border-lime-500"></select>
+                        </div>
+                        <div class="flex gap-2 mt-1">
+                            <input type="text" id="math-name" placeholder="輸入新欄位名稱..." class="flex-1 bg-[#0f172a] p-2.5 rounded-lg border border-slate-600 text-slate-200 focus:border-lime-500 outline-none">
+                            <button onclick="applyColumnMath()" class="px-6 py-2.5 bg-lime-600 hover:bg-lime-500 text-slate-900 rounded-lg font-bold shadow-md transition-colors">計算並新增</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="extract-panel" class="hidden bg-[#060b14] border border-green-500/40 p-5 rounded-xl shadow-inner text-sm animate-fade-in-up">
+                    <h4 class="text-green-300 font-bold mb-4 text-base">文字與日期萃取</h4>
+                    <div class="flex flex-col gap-3">
+                        <select id="ext-col" class="bg-[#0f172a] p-2.5 rounded-lg border border-slate-600 text-slate-200 focus:border-green-500"></select>
+                        <div class="flex items-center gap-3 bg-[#0f172a] p-2.5 border border-slate-600 rounded-lg">
+                            <span class="text-slate-400">從第</span>
+                            <input type="number" id="ext-start" value="1" min="1" class="w-16 bg-transparent text-green-400 font-bold text-center border-b border-green-500/50 outline-none focus:border-green-400">
+                            <span class="text-slate-400">字起，截取</span>
+                            <input type="number" id="ext-len" value="3" min="1" class="w-16 bg-transparent text-green-400 font-bold text-center border-b border-green-500/50 outline-none focus:border-green-400">
+                            <span class="text-slate-400">個字</span>
+                        </div>
+                        <div class="flex gap-2 mt-1">
+                            <input type="text" id="ext-name" placeholder="輸入新欄位名稱..." class="flex-1 bg-[#0f172a] p-2.5 rounded-lg border border-slate-600 text-slate-200 focus:border-green-500 outline-none">
+                            <button onclick="applyExtraction()" class="px-6 py-2.5 bg-green-600 hover:bg-green-500 text-slate-900 rounded-lg font-bold shadow-md transition-colors">萃取並新增</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="stats-panel" class="hidden bg-[#060b14] border border-teal-500/40 p-5 rounded-xl shadow-inner text-sm animate-fade-in-up">
+                    <h4 class="text-teal-300 font-bold mb-4 text-base">欄位數值統計</h4>
+                    <div class="flex gap-2">
+                        <select id="stat-col-select" class="flex-1 bg-[#0f172a] p-2.5 rounded-lg border border-slate-600 text-slate-200 focus:border-teal-500"></select>
+                        <button onclick="calculateStats()" class="px-6 bg-teal-600 hover:bg-teal-500 text-white rounded-lg font-bold transition-colors">執行計算</button>
+                    </div>
+                    <div id="stat-results" class="hidden grid grid-cols-2 md:grid-cols-3 gap-3 mt-4 pt-4 border-t border-teal-900/50"></div>
+                </div>
+
+                <div id="chart-panel" class="hidden bg-[#060b14] border border-fuchsia-500/40 p-5 rounded-xl shadow-inner text-sm animate-fade-in-up">
+                    <h4 class="text-fuchsia-300 font-bold mb-4 text-base">資料視覺化</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="col-span-1 md:col-span-2 flex flex-col gap-1.5"><label class="text-fuchsia-400/80 font-bold">圖表類型</label><select id="chart-type-select" class="bg-[#0f172a] p-2.5 rounded-lg border border-slate-600 text-slate-200 focus:border-fuchsia-500"><option value="bar">長條圖 (Bar)</option><option value="line">折線圖 (Line)</option><option value="pie">圓餅圖 (Pie)</option><option value="doughnut">甜甜圈圖 (Doughnut)</option></select></div>
+                        <div class="flex flex-col gap-1.5"><label class="text-fuchsia-400/80 font-bold">X軸 (分類)</label><select id="chart-x-select" class="bg-[#0f172a] p-2.5 rounded-lg border border-slate-600 text-slate-200 focus:border-fuchsia-500"></select></div>
+                        <div class="flex flex-col gap-1.5"><label class="text-fuchsia-400/80 font-bold">Y軸 (數據)</label><select id="chart-y-select" class="bg-[#0f172a] p-2.5 rounded-lg border border-slate-600 text-slate-200 focus:border-fuchsia-500"></select></div>
+                    </div>
+                    <button onclick="generateChart()" class="mt-4 w-full py-2.5 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded-lg font-bold shadow-md transition-colors">產生圖表</button>
+                </div>
+            </div>
+            
+            <!-- 試算表本體容器 -->
+            <div class="flex-1 min-h-[500px] bg-[#0f172a] rounded-xl overflow-hidden shadow-2xl border border-slate-700/50 cursor-default relative mt-2">
+              <div id="spreadsheet-container" class="absolute inset-0"></div>
+            </div>
+        </div>
+    </aside>
+
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // ----------------------------------------------------------------------
+    // 全域變數與系統提示
+    // ----------------------------------------------------------------------
+    let toastTimeout;
+    function showToast(message, type = 'info') {
+      const toast = document.getElementById('system-toast');
+      const content = document.getElementById('system-toast-content');
+      let icon = '', borderClass = 'border-slate-600';
+      if (type === 'success') { icon = `<svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M5 13l4 4L19 7"></path></svg>`; borderClass = 'border-emerald-500/50'; } 
+      else if (type === 'error') { icon = `<svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"></path></svg>`; borderClass = 'border-rose-500/50'; } 
+      else { icon = `<svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`; borderClass = 'border-blue-500/50'; }
+      
+      content.className = `bg-slate-800/90 backdrop-blur-md border ${borderClass} text-slate-200 px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3`;
+      content.innerHTML = `${icon}<span class="font-medium text-sm md:text-base">${message}</span>`;
+      toast.classList.remove('opacity-0', 'translate-y-20', 'pointer-events-none');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-20', 'pointer-events-none'); }, 3000);
+    }
+
+    // [修復] 強制轉型 String，避免遇到數字時引發 replace is not a function
+    const normalizeText = (str) => {
+      if (str === null || str === undefined) return '';
+      return String(str).replace(/\r\n/g, '\n').split('\n').map(line => line.trim().replace(/\s+/g, ' ')).filter(line => line.length > 0).join('\n');
+    };
+
+    let CATEGORIES = [];
+    
+    // [修復] 本機端或無伺服器時的預設備用題庫資料
+    const _tDate = new Date();
+    const currentRocDate = `${_tDate.getFullYear() - 1911}/${_tDate.getMonth() + 1}/${_tDate.getDate()}`;
+    const DEFAULT_CATEGORIES = [
+      { id: 'data_viewer', title: '📊 雲端試算表 (進階分析)', fullName: '線上資料檢視與進階分析', isDataViewer: true, questions: [] },
+      {
+        id: 'preface', title: '前言與環境須知', fullName: '環境準備與注意事項', isPreface: true,
+        questions: [{ id: 'preface_q1', text: `【系統測試】請在下方輸入「今天的民國日期」（今日為 ${currentRocDate}）並點擊送出。`, example: currentRocDate, answer: currentRocDate }]
+      },
+      {
+        id: 'c1', title: '歷年癌症發生統計', fullName: 'c226a6c9ac2849d94e58dbeeefb6b91f_export.csv',
+        questions: [
+          { id: 'c1_q1', text: '1. 請找出這份資料中，總共包含了哪幾種「癌症別」？', example: '45', answer: '45' },
+          { id: 'c1_q2', text: '2. 請計算「2000 年至 2005 年」間，「台北市」罹患「胃」癌的總人數\n提示：須注意「性別」欄位的重複計算問題', example: '3036', answer: '3036' },
+          { id: 'c1_q3', text: '3. 針對「2022年」，請找出「全癌症」發生總數最高的前三名縣市以及其數量。\n請排除「全國」的數據，並將結果由高到低排序印出', example: '新北市 22706\n高雄市 16753\n台中市 15261', answer: '新北市 22706\n高雄市 16753\n台中市 15261' }
+        ]
+      },
+      {
+        id: 'c2', title: '空氣品質與 PM2.5 分析', fullName: 'aqx_p_432.csv',
+        questions: [
+          { id: 'c2_q1', text: '1. 請在「臺北市」的所有觀測站資料中，依照空氣品質指標 (aqi) 由高到低排序，印出前三的測站名稱 (sitename) 與 AQI 數值', example: '松山 60\n大同 57\n中山 55', answer: '松山 60\n大同 57\n中山 55' },
+          { id: 'c2_q2', text: '2. 請計算每個「縣市 (county)」的「細懸浮微粒 (pm2.5)」平均濃度，找出平均濃度最高的前三個縣市，並印出縣市名稱與其 PM2.5 平均值。', example: '臺東縣 24.00\n雲林縣 22.00\n南投縣 20.75', answer: '臺東縣 24.00\n雲林縣 22.00\n南投縣 20.75' },
+          { id: 'c2_q3', text: '3. 請分別計算空氣品質狀態 (status) 為「良好」與「普通」的測站各有幾個，並找出在狀態為「普通」的測站中，AQI 數值最高的是哪一個測站？', example: '17 67\n竹山 82', answer: '17 67\n竹山 82' }
+        ]
+      },
+      {
+        id: 'c3', title: '全台測速照相點分佈', fullName: 'NPA_TD1.csv',
+        questions: [
+          { id: 'c3_q1', text: '1. 請問全台各縣市中，哪個縣市擁有的測速照相點最多？哪個縣市的最少？其數量是多少？', example: '新北市 188\n嘉義市 11', answer: '新北市 188\n嘉義市 11' },
+          { id: 'c3_q2', text: '2. 請問哪些縣市擁有限速100的測速照相點？分別擁有多少個？請依數量降冪排序', example: '雲林縣 4\n臺南市 3', answer: '雲林縣 4\n臺南市 3' },
+          { id: 'c3_q3', text: '3. 在「國道公路警察局（DeptNm）」管轄內，按測速照相點的數量降冪排序，數量最多的前三名分別是哪幾條？分別有多少測速照相點？', example: '國道一號 77\n國道三號 52\n國道五號 20', answer: '國道一號 77\n國道三號 52\n國道五號 20' }
+        ]
+      }
+    ];
+
+    const state = {
+      activeCategoryId: null, user: null, submissions: [], dbError: false,
+      isSidebarOpen: true, 
+      isSpreadsheetOpen: true,
+      questionFilter: 'all' 
+    };
+
+    let app, auth, db, globalAppId;
+    let currentSpreadsheet = null;
+    let originalTableData = []; 
+    let currentTableData = [];  
+    let currentHeaders = [];
+    let currentChartObj = null;
+
+    const ICONS = {
+      clock: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      checkCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
+      xCircle: '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-rose-400 drop-shadow-[0_0_8px_rgba(251,113,133,0.6)]"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>',
+      copy: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>',
+      trash: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>',
+      chevronDown: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+      submit: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-80"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>'
+    };
+
+    // ----------------------------------------------------------------------
+    // UI 控制 (三欄式開關，修復點擊同步問題)
+    // ----------------------------------------------------------------------
+    window.toggleSidebar = function(force) {
+      state.isSidebarOpen = typeof force === 'boolean' ? force : !state.isSidebarOpen;
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      if (state.isSidebarOpen) { sidebar.classList.remove('sidebar-closed'); overlay.classList.remove('hidden'); } 
+      else { sidebar.classList.add('sidebar-closed'); overlay.classList.add('hidden'); }
+      setTimeout(() => { if(currentSpreadsheet) window.dispatchEvent(new Event('resize')); }, 300);
+    }
+
+    window.toggleSpreadsheet = function(force) {
+      state.isSpreadsheetOpen = typeof force === 'boolean' ? force : !state.isSpreadsheetOpen;
+      const rightPanel = document.getElementById('right-panel');
+      if (state.isSpreadsheetOpen) { rightPanel.classList.remove('spreadsheet-closed'); } 
+      else { rightPanel.classList.add('spreadsheet-closed'); }
+      setTimeout(() => { if(currentSpreadsheet) window.dispatchEvent(new Event('resize')); }, 300);
+    }
+
+    document.getElementById('sidebar-overlay').addEventListener('click', () => toggleSidebar(false));
+
+    // [修復] 移除按鈕選項，直接鎖定為滿版適應三欄式
+    window.applyContentWidth = function() {
+      const wrapper = document.getElementById('main-content-wrapper');
+      if (wrapper) wrapper.classList.add('max-w-full');
+    };
+
+    const mainScroll = document.getElementById('main-scroll-container');
+    const bttBtn = document.getElementById('back-to-top');
+    if (mainScroll && bttBtn) {
+      mainScroll.addEventListener('scroll', () => {
+        if (mainScroll.scrollTop > 400) { bttBtn.classList.remove('opacity-0', 'pointer-events-none'); bttBtn.classList.add('opacity-100', 'pointer-events-auto'); } 
+        else { bttBtn.classList.add('opacity-0', 'pointer-events-none'); bttBtn.classList.remove('opacity-100', 'pointer-events-auto'); }
+      });
+      bttBtn.addEventListener('click', () => { mainScroll.scrollTo({ top: 0, behavior: 'smooth' }); });
+    }
+
+    function initGeometricBackground() {
+      const canvas = document.getElementById('geom-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let width, height, particles;
+      let mouse = { x: null, y: null, radius: 180 };
+      window.addEventListener('mousemove', function(event) { mouse.x = event.clientX; mouse.y = event.clientY; });
+      window.addEventListener('mouseout', function() { mouse.x = null; mouse.y = null; });
+      function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; }
+
+      class Particle {
+        constructor() {
+          this.x = Math.random() * width; this.y = Math.random() * height;
+          this.vx = (Math.random() - 0.5) * 0.4; this.vy = (Math.random() - 0.5) * 0.4;
+          this.radius = Math.random() * 1.5 + 0.5;
+          const colors = ['rgba(96, 165, 250, 0.8)', 'rgba(45, 212, 191, 0.8)', 'rgba(167, 139, 250, 0.8)'];
+          this.color = colors[Math.floor(Math.random() * colors.length)];
+        }
+        update() {
+          this.x += this.vx; this.y += this.vy;
+          if (mouse.x != null && mouse.y != null) {
+            let dx = mouse.x - this.x, dy = mouse.y - this.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < mouse.radius) {
+              const force = (mouse.radius - distance) / mouse.radius;
+              this.x -= (dx / distance) * force * 1.5; this.y -= (dy / distance) * force * 1.5;
+            }
+          }
+          if (this.x < 0 || this.x > width) this.vx *= -1;
+          if (this.y < 0 || this.y > height) this.vy *= -1;
+        }
+        draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.fill(); }
+      }
+      function init() {
+        resize(); window.addEventListener('resize', resize);
+        particles = [];
+        let count = Math.min(Math.floor(window.innerWidth / 20), 80); 
+        for (let i = 0; i < count; i++) particles.push(new Particle());
+        animate();
+      }
+      function animate() {
+        ctx.clearRect(0, 0, width, height);
+        for (let i = 0; i < particles.length; i++) {
+          particles[i].update(); particles[i].draw();
+          if (mouse.x != null && mouse.y != null) {
+            let dx = particles[i].x - mouse.x, dy = particles[i].y - mouse.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < mouse.radius) {
+              ctx.beginPath(); ctx.strokeStyle = `rgba(96, 165, 250, ${0.5 * (1 - distance / mouse.radius)})`; 
+              ctx.lineWidth = 1.2; ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
+            }
+          }
+          for (let j = i + 1; j < particles.length; j++) {
+            const dist = Math.sqrt(Math.pow(particles[i].x - particles[j].x, 2) + Math.pow(particles[i].y - particles[j].y, 2));
+            if (dist < 150) {
+              ctx.beginPath(); ctx.strokeStyle = `rgba(45, 212, 191, ${0.45 * (1 - dist / 150)})`; 
+              ctx.lineWidth = 1.0; ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.stroke();
+            }
+          }
+        }
+        requestAnimationFrame(animate);
+      }
+      init();
+    }
+
+    // ----------------------------------------------------------------------
+    // 題庫與作答渲染
+    // ----------------------------------------------------------------------
+    function isCategoryCompleted(categoryId) {
+      const category = CATEGORIES.find(c => c.id === categoryId);
+      if (!category || !category.questions || category.questions.length === 0) return false;
+      return category.questions.every(q => state.submissions.some(sub => sub.questionId === q.id && sub.isCorrect));
+    }
+
+    function renderSidebar() {
+      const listDiv = document.getElementById('category-list');
+      if(CATEGORIES.length === 0) { listDiv.innerHTML = '<p class="p-4 text-slate-500">尚無題庫資料</p>'; return; }
+
+      // 過濾掉 isDataViewer 
+      const validCategories = CATEGORIES.filter(c => !c.isDataViewer);
+
+      listDiv.innerHTML = validCategories.map(category => {
+        const isActive = state.activeCategoryId === category.id;
+        const isCompleted = isCategoryCompleted(category.id);
+        
+        let progressHtml = '';
+        if (category.questions && category.questions.length > 0) {
+          const totalCount = category.questions.length;
+          const correctCount = category.questions.filter(q => state.submissions.some(sub => sub.questionId === q.id && sub.isCorrect)).length;
+          const badgeClass = isCompleted ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : (isActive ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-slate-700/50 text-slate-400 border border-slate-600/50');
+          progressHtml = `<span class="text-xs font-bold font-mono px-2.5 py-0.5 rounded-full ml-2 shrink-0 transition-colors ${badgeClass}">${correctCount}/${totalCount}</span>`;
+        }
+        
+        let btnClass = 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200 border border-transparent';
+        if (isActive && !isCompleted) btnClass = 'bg-gradient-to-r from-blue-600/20 to-transparent text-blue-300 font-bold border-l-4 border-l-blue-500 shadow-[inset_15px_0_20px_-15px_rgba(59,130,246,0.4)]';
+        else if (isCompleted && isActive) btnClass = 'bg-gradient-to-r from-emerald-600/20 to-transparent text-emerald-300 font-bold border-l-4 border-l-emerald-500 shadow-[inset_15px_0_20px_-15px_rgba(16,185,129,0.4)]';
+        else if (isCompleted) btnClass = 'text-emerald-500/70 hover:bg-emerald-900/20 hover:text-emerald-400 border border-transparent';
+
+        return `<button data-id="${category.id}" class="category-btn group w-full text-left px-4 py-4 rounded-xl text-sm md:text-base transition-all duration-300 hover:-translate-y-[1px] active:scale-[0.97] flex items-center justify-between ${btnClass}"><span class="truncate">${category.title}</span>${progressHtml}</button>`;
+      }).join('');
+
+      document.querySelectorAll('.category-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          if (state.activeCategoryId === e.currentTarget.getAttribute('data-id')) return;
+          state.activeCategoryId = e.currentTarget.getAttribute('data-id');
+          state.questionFilter = localStorage.getItem('preferredFilter') || 'all';
+          if (window.innerWidth < 768) toggleSidebar(false);
+          renderSidebar(); renderMainContent();
+        });
+      });
+    }
+
+    function triggerFadeInAnimation() {
+      const container = document.getElementById('questions-container');
+      container.classList.remove('animate-fade-in-up'); void container.offsetWidth; container.classList.add('animate-fade-in-up');
+    }
+
+    window.applyQuestionFilter = function(filterType) {
+      state.questionFilter = filterType; localStorage.setItem('preferredFilter', filterType);
+      const category = CATEGORIES.find(c => c.id === state.activeCategoryId);
+      if (!category || !category.questions) return;
+
+      let visibleCount = 0;
+      category.questions.forEach(q => {
+        const card = document.getElementById(`card-${q.id}`); if (!card) return;
+        const hasCorrect = state.submissions.some(s => s.questionId === q.id && isSubmissionValidToday(s, q.id));
+        let show = true;
+        if (filterType === 'unsolved') show = !hasCorrect;
+        if (filterType === 'solved') show = hasCorrect;
+
+        if (show) { card.style.display = 'block'; card.classList.remove('animate-fade-in-up'); void card.offsetWidth; card.classList.add('animate-fade-in-up'); visibleCount++; } 
+        else card.style.display = 'none';
+      });
+
+      document.querySelectorAll('.q-filter-btn').forEach(btn => {
+        if (btn.dataset.filter === filterType) btn.className = "q-filter-btn px-6 py-2.5 rounded-xl text-sm md:text-base font-bold transition-all duration-300 border border-blue-500/50 bg-blue-600/20 text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.15)]";
+        else btn.className = "q-filter-btn px-6 py-2.5 rounded-xl text-sm md:text-base font-bold transition-all duration-300 border border-white/5 bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-slate-300";
+      });
+
+      let emptyMsg = document.getElementById('empty-filter-msg');
+      if (visibleCount === 0 && !category.isPreface) {
+        if (!emptyMsg) {
+          emptyMsg = document.createElement('div'); emptyMsg.id = 'empty-filter-msg';
+          emptyMsg.className = 'text-center py-16 text-slate-400 text-lg md:text-xl font-bold animate-fade-in-up bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5';
+          emptyMsg.innerHTML = '🎉 目前沒有符合此條件的題目！'; document.getElementById('questions-container').appendChild(emptyMsg);
+        }
+      } else { if (emptyMsg) emptyMsg.remove(); }
+    };
+
+    function renderMainContent() {
+      if (!CATEGORIES || CATEGORIES.length === 0) return;
+      const category = CATEGORIES.find(c => c.id === state.activeCategoryId) || CATEGORIES.find(c => !c.isDataViewer);
+      
+      document.getElementById('topbar-title').textContent = category.title;
+      document.getElementById('category-title').textContent = category.fullName;
+      
+      const container = document.getElementById('questions-container');
+      const filterContainer = document.getElementById('filter-container');
+      container.innerHTML = ''; triggerFadeInAnimation();
+
+      const descEl = document.getElementById('category-desc');
+
+      if (category.isPreface) {
+        descEl.classList.add('hidden'); filterContainer.innerHTML = '';
+        const prefaceBlock = document.createElement('div');
+        prefaceBlock.className = 'bg-slate-900/40 backdrop-blur-xl rounded-3xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] border border-white/5 p-8 md:p-10 text-slate-200 space-y-12 relative overflow-hidden glass-highlight hover:border-white/10 transition-all duration-500 mb-10';
+        
+        // [修復] 完整還原四個前言章節與細節
+        prefaceBlock.innerHTML = `
+            <div class="glow-blob w-64 h-64 bg-blue-600/20 -top-10 -left-10"></div>
+            <div class="glow-blob w-72 h-72 bg-teal-600/10 bottom-0 right-0" style="animation-delay: -5s;"></div>
+            
+            <section class="relative z-10">
+              <h3 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 border-b border-white/10 pb-4 mb-6 flex items-center gap-3">
+                <span class="bg-gradient-to-br from-blue-500 to-teal-400 text-white w-9 h-9 rounded-full flex items-center justify-center text-base shadow-[0_0_15px_rgba(59,130,246,0.5)]">1</span> 檔案連結與準備
+              </h3>
+              <p class="mb-5 text-slate-300 leading-relaxed text-base md:text-lg">在開始之前，請先確保環境中已安裝 Git 與 Git LFS（以 Ubuntu/Debian 為例）：</p>
+              <div class="bg-[#030712]/80 text-emerald-400 p-5 rounded-2xl font-mono text-base overflow-x-auto border border-white/5 mb-6 space-y-2 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] hover:border-emerald-500/30 transition-colors">
+                <div class="flex items-center gap-2"><span class="text-slate-600 select-none">$</span> sudo apt install git-all</div>
+                <div class="flex items-center gap-2"><span class="text-slate-600 select-none">$</span> git lfs install</div>
+              </div>
+              <p class="mb-5 text-slate-300 leading-relaxed text-base md:text-lg">接著，請使用 <strong class="text-white font-semibold">Git</strong> 將本題庫相關的資料檔案複製到您的本地環境：</p>
+              <div class="bg-[#030712]/80 text-emerald-400 p-5 rounded-2xl font-mono text-base overflow-x-auto border border-white/5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] hover:border-emerald-500/30 transition-colors flex items-center gap-2">
+                <span class="text-slate-600 select-none">$</span> git clone https://huggingface.co/datasets/HDE-N/training_file_v1
+              </div>
+            </section>
+            
+            <section class="relative z-10">
+              <h3 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 border-b border-white/10 pb-4 mb-6 flex items-center gap-3">
+                <span class="bg-gradient-to-br from-blue-500 to-teal-400 text-white w-9 h-9 rounded-full flex items-center justify-center text-base shadow-[0_0_15px_rgba(59,130,246,0.5)]">2</span> 執行環境建議
+              </h3>
+              <div class="mb-8 p-7 bg-gradient-to-br from-blue-900/20 to-indigo-900/10 border border-blue-500/20 rounded-2xl text-slate-300 shadow-[0_8px_20px_rgba(0,0,0,0.2)] hover:border-blue-400/40 hover:shadow-[0_8px_25px_rgba(59,130,246,0.15)] transition-all duration-300 relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full"></div>
+                <p class="font-bold text-blue-300 mb-5 flex items-center gap-3 text-xl"><span class="animate-pulse">💡</span> 雙平台練習建議</p>
+                <ul class="list-disc list-inside space-y-3 ml-2 text-base md:text-lg">
+                  <li><strong class="text-white">Windows：</strong> 可以使用 Excel 或直接使用本站右側的「雲端試算表」工具進行整理與計算。</li>
+                  <li><strong class="text-white">Linux：</strong> 建議直接使用終端機介面（Terminal）搭配指令操作。</li>
+                </ul>
+                <p class="mt-6 text-base text-blue-200/60 border-t border-blue-500/20 pt-4 font-medium tracking-wide">強烈建議兩種環境與方式都親自練習一次，以熟悉不同情境的資料處理手法！</p>
+              </div>
+              <p class="mb-5 leading-relaxed text-slate-300 text-base md:text-lg">如果您目前使用的是 Windows 作業系統，請自行安裝 <strong class="text-white">WSL (Windows Subsystem for Linux)</strong> 以取得 Linux 終端機環境。步驟如下：</p>
+              <div class="bg-[#030712]/60 border border-white/5 p-7 md:p-10 rounded-2xl mb-8 shadow-inner hover:border-white/10 transition-colors">
+                <ol class="list-decimal list-inside space-y-5 text-slate-300 marker:text-slate-500 text-base md:text-lg">
+                  <li>以<strong class="text-white">系統管理員身分</strong>開啟 PowerShell。</li>
+                  <li>輸入以下指令並執行：
+                    <code class="bg-slate-800 text-teal-300 px-3 py-1.5 rounded-lg ml-1 font-mono text-base border border-slate-700/50 shadow-sm">wsl --install</code>
+                  </li>
+                  <li>安裝完成後請<strong class="text-white">重新啟動電腦</strong>。</li>
+                  <li>重啟後再次開啟終端機，依照畫面提示設定您的 Linux 帳號與密碼。</li>
+                </ol>
+              </div>
+            </section>
+
+            <section class="relative z-10">
+              <h3 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 border-b border-white/10 pb-4 mb-6 flex items-center gap-3">
+                <span class="bg-gradient-to-br from-blue-500 to-teal-400 text-white w-9 h-9 rounded-full flex items-center justify-center text-base shadow-[0_0_15px_rgba(59,130,246,0.5)]">3</span> 平台聲明
+              </h3>
+              <div class="bg-gradient-to-br from-amber-900/20 to-[#030712] border border-amber-500/20 p-7 rounded-2xl text-amber-200/90 shadow-[0_8px_20px_rgba(0,0,0,0.3)] relative overflow-hidden">
+                <div class="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/10 blur-3xl rounded-full"></div>
+                <p class="mb-4 flex items-center gap-3"><strong class="text-amber-400 text-xl">本網站僅供練習與自我測試使用。</strong></p>
+                <p class="mb-4 text-amber-100/80 text-base md:text-lg flex items-center gap-3">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                  <span class="inline-block"><strong class="text-amber-300">資料來源：</strong> 本網站所使用之分析數據，均來自於政府開放資料平台。</span>
+                </p>
+                <p class="mb-6 text-amber-100/70 text-base md:text-lg flex items-center gap-3">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                  <span class="inline-block">題庫題目與參考答案皆為人工建立，<strong class="text-amber-300 border-b border-amber-500/30 pb-1">可能會有出錯之情況</strong>。</span>
+                </p>
+                <p class="text-base md:text-lg border-t border-amber-500/20 pt-5 mt-3 flex items-start gap-3 text-amber-200/80 leading-relaxed">
+                  <span class="text-2xl drop-shadow-md shrink-0">💡</span> 
+                  若您反覆檢查與計算後，系統依然判定答錯，歡迎隨時來訊詢問與指正！
+                </p>
+              </div>
+            </section>
+
+            <section class="relative z-10">
+              <h3 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300 border-b border-white/10 pb-4 mb-6 flex items-center gap-3">
+                <span class="bg-gradient-to-br from-blue-500 to-teal-400 text-white w-9 h-9 rounded-full flex items-center justify-center text-base shadow-[0_0_15px_rgba(59,130,246,0.5)]">4</span> 測驗與作答須知
+              </h3>
+              <div class="bg-slate-900/60 border border-white/5 p-7 md:p-10 rounded-2xl shadow-inner">
+                <ul class="list-disc list-inside space-y-4 text-slate-300 text-base md:text-lg marker:text-blue-500">
+                  <li><strong class="text-white">題目難易：</strong>所有題目並無分難易，可能前面較難，後面較簡單，請自由選擇挑戰。</li>
+                  <li><strong class="text-white">檔案調用：</strong>每個單元的最上方，皆標示著該單元所用到的檔案名稱（部分單元需要同時調用多個檔案進行分析）。</li>
+                  <li><strong class="text-white">快速作答：</strong>在任何作答輸入框中，皆支援使用快捷鍵 <kbd class="bg-[#030712] px-2 py-1 rounded-md border border-slate-700/50 text-sm text-slate-300 font-mono shadow-sm">Ctrl</kbd> + <kbd class="bg-[#030712] px-2 py-1 rounded-md border border-slate-700/50 text-sm text-slate-300 font-mono shadow-sm">Enter</kbd> 快速送出答案。</li>
+                </ul>
+              </div>
+            </section>
+        `;
+        container.appendChild(prefaceBlock);
+      } else {
+        descEl.classList.remove('hidden');
+        filterContainer.innerHTML = `
+          <div class="mt-8 mb-4 flex flex-wrap gap-3">
+            <button class="q-filter-btn px-6 py-2.5 rounded-xl text-sm md:text-base font-bold transition-all duration-300 border border-blue-500/50 bg-blue-600/20 text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.15)]" data-filter="all">全部題目</button>
+            <button class="q-filter-btn px-6 py-2.5 rounded-xl text-sm md:text-base font-bold transition-all duration-300 border border-white/5 bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-slate-300" data-filter="unsolved">未答對</button>
+            <button class="q-filter-btn px-6 py-2.5 rounded-xl text-sm md:text-base font-bold transition-all duration-300 border border-white/5 bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-slate-300" data-filter="solved">已答對</button>
+          </div>
+        `;
+        setTimeout(() => {
+          document.querySelectorAll('.q-filter-btn').forEach(btn => { btn.addEventListener('click', (e) => { window.applyQuestionFilter(e.target.dataset.filter); }); });
+          window.applyQuestionFilter(state.questionFilter);
+        }, 0);
+      }
+
+      category.questions.forEach((q, index) => {
+        const qDiv = document.createElement('div');
+        qDiv.id = `card-${q.id}`;
+        qDiv.className = 'group bg-slate-900/50 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.4)] border border-white/5 overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(59,130,246,0.15)] hover:border-blue-500/30 glass-highlight relative';
+        
+        const savedDraft = localStorage.getItem(`draft_${q.id}`) || '';
+
+        qDiv.innerHTML = `
+          <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-400/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+          
+          <div class="p-6 md:p-10 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent relative z-10">
+            <div class="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-blue-500 to-teal-400 opacity-80 group-hover:w-3 transition-all duration-300"></div>
+            <p class="text-slate-200 text-lg md:text-xl leading-relaxed whitespace-pre-line font-medium ml-4 md:ml-5 drop-shadow-sm">${q.text}</p>
+            <div class="mt-8 bg-[#030712]/70 p-5 md:p-6 rounded-2xl border border-white/5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] ml-4 md:ml-5 group-hover:border-white/10 transition-colors duration-300 relative group/example">
+              <button class="absolute top-5 right-5 p-2 text-slate-500 hover:text-teal-400 bg-white/5 hover:bg-white/10 rounded-lg transition-all opacity-0 group-hover/example:opacity-100 copy-btn focus:outline-none focus:ring-2 focus:ring-teal-500/50" data-clipboard="${q.example.replace(/"/g, '&quot;')}">${ICONS.copy}</button>
+              <p class="text-xs md:text-sm text-slate-500 mb-3 font-bold tracking-widest uppercase flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                範例輸出參考
+              </p>
+              <pre class="text-sm md:text-base text-teal-100/70 font-mono whitespace-pre-wrap">${q.example}</pre>
+            </div>
+          </div>
+          
+          <div class="p-6 md:p-10 bg-[#0a101f]/40 relative z-10">
+            <div class="flex flex-col gap-5 pl-4 md:pl-5 border-l border-transparent">
+              <label for="input-${q.id}" class="text-base md:text-lg font-bold text-slate-300 tracking-wide flex items-center gap-3">
+                <span class="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_5px_rgba(96,165,250,0.8)]"></span>
+                您的答案：
+              </label>
+              <textarea id="input-${q.id}" placeholder="請在此輸入與範例格式完全一致的答案..." class="w-full min-h-[140px] p-5 bg-[#030712]/80 border border-white/10 rounded-2xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-400/80 outline-none transition-all duration-300 text-slate-200 placeholder-slate-600/70 font-mono text-sm md:text-base resize-y shadow-[inset_0_2px_15px_rgba(0,0,0,0.6)] custom-scrollbar hover:border-white/20 overflow-hidden"></textarea>
+              
+              <div class="flex flex-col md:flex-row md:items-center justify-end mt-4 gap-4">
+                <div class="flex justify-end gap-3 w-full md:w-auto">
+                  <button id="clear-${q.id}" class="px-6 py-3.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all duration-300 text-sm md:text-base font-bold flex items-center gap-2 border border-transparent hover:border-rose-500/20 focus:outline-none">
+                    ${ICONS.trash} 清空作答區
+                  </button>
+                  <button id="btn-${q.id}" disabled class="btn-shine relative px-8 md:px-10 py-3.5 bg-gradient-to-r from-blue-600 to-teal-500 text-white font-bold text-base md:text-lg rounded-xl hover:from-blue-500 hover:to-teal-400 active:scale-[0.96] disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 disabled:opacity-80 disabled:active:scale-100 disabled:cursor-not-allowed transition-all duration-300 shadow-[0_8px_20px_rgba(59,130,246,0.3)] disabled:shadow-none flex items-center gap-2 border border-white/10 disabled:border-transparent overflow-hidden focus:outline-none">
+                    <span class="relative z-10 btn-text flex items-center gap-3">
+                      ${ICONS.submit}
+                      送出答案
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="history-container-${q.id}" class="hidden bg-[#030712]/90 p-6 md:p-10 border-t border-white/5 relative z-10 transition-all duration-300">
+            <div class="flex items-center justify-between mb-2 pl-4 md:pl-5 pr-2">
+              <div class="flex items-center gap-2 cursor-pointer hover:text-blue-300 transition-colors group/toggle select-none" id="toggle-history-btn-${q.id}">
+                <h4 class="text-xs md:text-sm font-bold text-slate-400 group-hover/toggle:text-blue-300 transition-colors flex items-center gap-2 uppercase tracking-widest">
+                  ${ICONS.clock} 作答紀錄 (<span id="history-count-${q.id}" class="text-blue-400">0</span> 次)
+                </h4>
+                <div id="history-chevron-${q.id}" class="text-slate-500 transition-transform duration-300 group-hover/toggle:text-blue-400">${ICONS.chevronDown}</div>
+              </div>
+              <button id="clear-history-${q.id}" class="text-xs md:text-sm px-3 py-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors flex items-center gap-1.5 border border-transparent hover:border-rose-500/30 focus:outline-none transition-all duration-200">
+                ${ICONS.trash} 清空紀錄
+              </button>
+            </div>
+            <div id="history-list-wrapper-${q.id}" class="overflow-hidden transition-all duration-300 max-h-[400px]">
+              <div id="history-list-${q.id}" class="space-y-4 max-h-[350px] overflow-y-auto pr-3 mt-4 custom-scrollbar pl-4 md:pl-5"></div>
+            </div>
+          </div>
+        `;
+        
+        container.appendChild(qDiv);
+
+        const textarea = document.getElementById(`input-${q.id}`);
+        textarea.value = savedDraft;
+        if (savedDraft) { setTimeout(() => { textarea.style.height = 'auto'; textarea.style.height = (textarea.scrollHeight) + 2 + 'px'; }, 0); }
+
+        const btn = document.getElementById(`btn-${q.id}`);
+        const clearHistoryBtn = document.getElementById(`clear-history-${q.id}`);
+        const toggleHistoryBtn = document.getElementById(`toggle-history-btn-${q.id}`);
+        const historyListWrapper = document.getElementById(`history-list-wrapper-${q.id}`);
+        const historyChevron = document.getElementById(`history-chevron-${q.id}`);
+        const card = document.getElementById(`card-${q.id}`);
+        const btnText = btn.querySelector('.btn-text');
+        const clearBtn = document.getElementById(`clear-${q.id}`);
+
+        if (toggleHistoryBtn) {
+          toggleHistoryBtn.addEventListener('click', () => {
+            const isCollapsed = historyListWrapper.style.maxHeight === '0px';
+            if (isCollapsed) { historyListWrapper.style.maxHeight = '400px'; historyListWrapper.style.opacity = '1'; historyChevron.style.transform = 'rotate(0deg)'; } 
+            else { historyListWrapper.style.maxHeight = '0px'; historyListWrapper.style.opacity = '0'; historyChevron.style.transform = 'rotate(-90deg)'; }
+          });
+        }
+
+        btn.disabled = textarea.value.trim().length === 0;
+        textarea.addEventListener('input', (e) => {
+          const val = e.target.value; btn.disabled = val.trim().length === 0;
+          localStorage.setItem(`draft_${q.id}`, val);
+          e.target.style.height = 'auto'; e.target.style.height = (e.target.scrollHeight) + 2 + 'px';
+        });
+
+        textarea.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); if (!btn.disabled) btn.click(); } });
+
+        clearBtn.addEventListener('click', () => { textarea.value = ''; btn.disabled = true; localStorage.removeItem(`draft_${q.id}`); textarea.style.height = 'auto'; textarea.focus(); });
+
+        let confirmTimeout;
+        if (clearHistoryBtn) {
+          clearHistoryBtn.addEventListener('click', async function() {
+            if (this.dataset.confirm === 'true') {
+               const subsToDelete = state.submissions.filter(s => s.questionId === q.id);
+               state.submissions = state.submissions.filter(s => s.questionId !== q.id);
+               renderAllHistories(); renderSidebar(); 
+               if (state.user && db && !state.dbError) { subsToDelete.forEach(async (sub) => { try { await deleteDoc(doc(db, 'artifacts', globalAppId, 'users', state.user.uid, 'submissions', sub.id)); } catch(e) {} }); } 
+               else { subsToDelete.forEach(sub => deleteFromLocal(sub.id)); }
+               this.dataset.confirm = 'false'; this.innerHTML = `${ICONS.trash} 清空紀錄`; this.classList.remove('bg-rose-500/20', 'border-rose-500/50');
+               showToast('已成功清空該題作答紀錄', 'success');
+            } else {
+               this.dataset.confirm = 'true'; this.innerHTML = `<span class="text-rose-400 font-bold">確定清空？</span>`; this.classList.add('bg-rose-500/20', 'border-rose-500/50');
+               clearTimeout(confirmTimeout);
+               confirmTimeout = setTimeout(() => { this.dataset.confirm = 'false'; this.innerHTML = `${ICONS.trash} 清空紀錄`; this.classList.remove('bg-rose-500/20', 'border-rose-500/50'); }, 3000);
+            }
+          });
+        }
+
+        btn.addEventListener('click', async () => {
+          const val = textarea.value; if (!val.trim()) return;
+          btn.disabled = true;
+          btnText.innerHTML = `<svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>驗證中...`;
+          textarea.disabled = true;
+
+          // [修復] 驗證時若發生任何不可預期錯誤，能還原按鈕狀態
+          try {
+              const isCorrect = await verifyAnswer(q.id, val, q.answer);
+              card.classList.remove('animate-flash-correct', 'animate-shake-error'); void card.offsetWidth; 
+              if (isCorrect) card.classList.add('animate-flash-correct'); else card.classList.add('animate-shake-error');
+
+              await handleSubmit(q.id, val, isCorrect);
+              localStorage.removeItem(`draft_${q.id}`);
+              textarea.value = ''; textarea.style.height = 'auto';
+          } catch(e) {
+              console.error(e);
+              showToast('驗證時發生異常錯誤', 'error');
+          } finally {
+              textarea.disabled = false;
+              btnText.innerHTML = `${ICONS.submit} 送出答案`;
+          }
+        });
+      });
+
+      document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const text = e.currentTarget.dataset.clipboard; const originalHtml = e.currentTarget.innerHTML;
+          const successFn = () => {
+            e.currentTarget.innerHTML = '<span class="text-teal-400 text-[13px] font-bold px-1.5 py-0.5">已複製!</span>';
+            showToast('已複製範例格式', 'success'); setTimeout(() => { e.currentTarget.innerHTML = originalHtml; }, 1500);
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(successFn).catch(fallbackCopy); } 
+          else { fallbackCopy(); }
+
+          function fallbackCopy() {
+             const textArea = document.createElement("textarea"); textArea.value = text;
+             textArea.style.position = "fixed"; textArea.style.left = "-999999px";
+             document.body.appendChild(textArea); textArea.select();
+             try { document.execCommand('copy'); successFn(); } catch (err) { showToast('複製失敗，請手動選取複製', 'error'); }
+             document.body.removeChild(textArea);
+          }
+        });
+      });
+
+      renderAllHistories();
+    }
+
+    function renderAllHistories() {
+      const category = CATEGORIES.find(c => c.id === state.activeCategoryId);
+      if (!category) return;
+
+      category.questions.forEach(q => {
+        const container = document.getElementById(`history-container-${q.id}`);
+        const listDiv = document.getElementById(`history-list-${q.id}`);
+        const countSpan = document.getElementById(`history-count-${q.id}`);
+        if (!container || !listDiv) return;
+
+        const qSubs = state.submissions.filter(s => s.questionId === q.id);
+        if (qSubs.length > 0) {
+          container.classList.remove('hidden'); countSpan.textContent = qSubs.length;
+          listDiv.innerHTML = qSubs.map((sub, index) => {
+            const timeStr = sub.timestamp ? new Date(sub.timestamp.toMillis ? sub.timestamp.toMillis() : sub.timestamp).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '剛剛';
+            const delay = index < 5 ? `animation-delay: ${index * 0.05}s` : '';
+            return `
+              <div class="p-5 md:p-6 rounded-2xl border text-sm md:text-base flex gap-4 md:gap-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-slide-in-x ${sub.isCorrect ? 'bg-emerald-900/10 border-emerald-500/20 hover:bg-emerald-900/30 hover:border-emerald-500/50 hover:shadow-[0_10px_20px_rgba(16,185,129,0.1)]' : 'bg-rose-900/10 border-rose-500/20 hover:bg-rose-900/30 hover:border-rose-500/50 hover:shadow-[0_10px_20px_rgba(225,29,72,0.1)]'}" style="opacity:0; ${delay}">
+                <div class="shrink-0 mt-0.5 relative">
+                  <div class="absolute inset-0 blur-md ${sub.isCorrect ? 'bg-emerald-500/40' : 'bg-rose-500/40'}"></div>
+                  <div class="relative z-10">${sub.isCorrect ? ICONS.checkCircle : ICONS.xCircle}</div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold tracking-wide ${sub.isCorrect ? 'text-emerald-400' : 'text-rose-400'}">${sub.isCorrect ? '正確' : '錯誤'}</span>
+                    <span class="text-xs text-slate-400 font-mono bg-black/40 px-2.5 py-1 rounded-full border border-white/5 shadow-inner">${timeStr}</span>
+                  </div>
+                  <pre class="font-mono text-slate-300/90 whitespace-pre-wrap break-all border-t border-white/5 pt-3 mt-3 leading-relaxed">${sub.submittedAnswer}</pre>
+                </div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          container.classList.add('hidden');
+        }
+      });
+    }
+
+    async function handleSubmit(questionId, answer, isCorrect) {
+      const userAnswer = answer || '';
+      const newSub = { id: Date.now().toString(), questionId, categoryId: state.activeCategoryId, submittedAnswer: userAnswer, isCorrect, timestamp: Date.now() };
+      const wasCompleted = isCategoryCompleted(state.activeCategoryId);
+
+      try {
+        if (state.user && db && !state.dbError) {
+          state.submissions = [newSub, ...state.submissions];
+          if (!wasCompleted && isCategoryCompleted(state.activeCategoryId)) triggerCelebration();
+          await addDoc(collection(db, 'artifacts', globalAppId, 'users', state.user.uid, 'submissions'), { questionId, categoryId: state.activeCategoryId, submittedAnswer: userAnswer, isCorrect, timestamp: serverTimestamp() });
+        } else {
+          saveToLocal(newSub); state.submissions = [newSub, ...state.submissions];
+          if (!wasCompleted && isCategoryCompleted(state.activeCategoryId)) triggerCelebration();
+          renderAllHistories(); 
+        }
+      } catch (err) { console.error("儲存失敗:", err); }
+      
+      const historyListWrapper = document.getElementById(`history-list-wrapper-${questionId}`);
+      const historyChevron = document.getElementById(`history-chevron-${questionId}`);
+      if (historyListWrapper && historyChevron) { historyListWrapper.style.maxHeight = '400px'; historyListWrapper.style.opacity = '1'; historyChevron.style.transform = 'rotate(0deg)'; }
+      renderSidebar();
+    }
+
+    // ----------------------------------------------------------------------
+    // 試算表分析模組 (右欄封裝)
+    // ----------------------------------------------------------------------
+    async function initDataViewer() {
+      const selector = document.getElementById('file-selector');
+      const container = document.getElementById('spreadsheet-container');
+
+      try {
+        const res = await fetch('./config/file_list.json');
+        if (!res.ok) throw new Error('找不到 file_list.json');
+        const fileList = await res.json();
+
+        selector.innerHTML = '<option value="">-- 請選擇資料檔 --</option>' + fileList.files.map(f => `<option value="${f}">${f}</option>`).join('');
+      } catch (err) { 
+        // [修復] 為了避免開發或本機沒架伺服器時抓不到，放入預設備用檔名
+        const fallbackFiles = [
+            "c226a6c9ac2849d94e58dbeeefb6b91f_export.csv", "aqx_p_432.csv", "NPA_TD1.csv",
+            "STOCK_DAY_ALL_20260401.csv", "STOCK_DAY_ALL_20260402.csv", "每日各站進出站人數-2026.json",
+            "opendata114N010.csv", "20250930-DailyImmigPort.csv", "20251031-DailyImmigPort.csv",
+            "20251130-DailyImmigPort.csv", "20251231-DailyImmigPort.csv", "20260131-DailyImmigPort.csv",
+            "20260228-DailyImmigPort.csv", "20260331-DailyImmigPort.csv"
+        ];
+        selector.innerHTML = '<option value="">-- (預設備用) 請選擇資料檔 --</option>' + fallbackFiles.map(f => `<option value="${f}">${f}</option>`).join('');
+      }
+
+      selector.addEventListener('change', async (e) => {
+        const fileName = e.target.value;
+        if (!fileName) { document.getElementById('custom-toolbar').classList.add('hidden'); container.innerHTML = ''; return; }
+
+        container.innerHTML = '<div class="text-blue-400 p-10 text-center font-bold animate-pulse tracking-widest mt-10">資料下載與解析中...</div>';
+        document.getElementById('custom-toolbar').classList.add('hidden'); toggleActivePanel(null);
+
+        try {
+          const csvRes = await fetch(`./data/${fileName}`);
+          if (!csvRes.ok) throw new Error('無法存取檔案');
+          const csvText = await csvRes.text();
+          Papa.parse(csvText, { skipEmptyLines: true, complete: function(results) {
+              const data = results.data;
+              currentHeaders = [];
+              if (data.length > 0) {
+                let rawHeaders = data.shift();
+                currentHeaders = rawHeaders.map((title, idx) => ({ index: idx, name: getExcelColumnName(idx), originalTitle: title }));
+              }
+              originalTableData = JSON.parse(JSON.stringify(data));
+              currentTableData = JSON.parse(JSON.stringify(data));
+              renderSpreadsheet();
+              document.getElementById('custom-toolbar').classList.remove('hidden');
+            }
+          });
+        } catch (err) { container.innerHTML = `<div class="text-rose-500 p-8 font-bold text-center mt-10">載入失敗：請確保專案目錄包含 ./data/${fileName}</div>`; }
+      });
+    }
+
+    function getExcelColumnName(colIndex) {
+        let colName = ''; let dividend = colIndex + 1; let modulo;
+        while (dividend > 0) { modulo = (dividend - 1) % 26; colName = String.fromCharCode(65 + modulo) + colName; dividend = parseInt((dividend - modulo) / 26); }
+        return colName;
+    }
+
+    function renderSpreadsheet() {
+        const container = document.getElementById('spreadsheet-container');
+        container.innerHTML = ''; if (currentSpreadsheet) currentSpreadsheet.destroy();
+
+        let jHeaders = currentHeaders.map(h => ({ title: `[${h.name}] ${h.originalTitle}`, width: 130 }));
+        currentSpreadsheet = jspreadsheet(container, {
+            data: currentTableData, columns: jHeaders,
+            search: false, pagination: 50, columnSorting: false, editable: false, 
+            allowInsertRow: false, allowInsertColumn: false, allowDeleteRow: false, allowDeleteColumn: false,
+            tableOverflow: true, tableWidth: "100%", tableHeight: "100%", wordWrap: true, toolbar: null
+        });
+        populateSelectOptions();
+    }
+
+    function populateSelectOptions() {
+        const html = currentHeaders.map(h => `<option value="${h.index}">[${h.name}] ${h.originalTitle}</option>`).join('');
+        ['stat-col-select', 'chart-x-select', 'chart-y-select', 'groupby-col-select', 'groupby-val-select', 'math-col1', 'math-col2', 'ext-col'].forEach(id => {
+            if(document.getElementById(id)) document.getElementById(id).innerHTML = html;
+        });
+        document.getElementById('filter-rules-list').innerHTML = ''; window.addFilterRuleRow(html, true);
+        document.getElementById('sort-rules-list').innerHTML = ''; window.addSortRuleRow(html, true);
+    }
+
+    window.toggleActivePanel = function(panelId) {
+        ['filter-panel', 'sort-panel', 'stats-panel', 'chart-panel', 'groupby-panel', 'math-panel', 'extract-panel'].forEach(p => {
+            const el = document.getElementById(p);
+            if (el) p === panelId ? el.classList.toggle('hidden') : el.classList.add('hidden');
+        });
+    };
+
+    window.addFilterRuleRow = function(html, isPrimary) {
+        const filterList = document.getElementById('filter-rules-list');
+        const rowId = 'filter-row-' + Date.now();
+        const rowDiv = document.createElement('div'); rowDiv.id = rowId;
+        rowDiv.className = 'flex flex-col md:flex-row md:items-center gap-2 bg-blue-900/20 p-2.5 rounded-lg border border-blue-500/30';
+        const label = isPrimary ? '<span class="font-bold text-blue-300 w-16 shrink-0">主要</span>' : '<span class="font-bold text-slate-400 w-16 shrink-0">交集</span>';
+        
+        rowDiv.innerHTML = `
+            ${label}
+            <select class="filter-col-select flex-1 bg-[#0f172a] text-slate-200 p-2 rounded border border-slate-600 focus:border-blue-500">${html}</select>
+            <select class="filter-op-select bg-[#0f172a] text-slate-200 p-2 rounded border border-slate-600 focus:border-blue-500 shrink-0">
+                <option value="includes">包含文字</option><option value=">">大於</option><option value="<">小於</option><option value="=">等於</option><option value="between">介於</option><option value="empty">空值</option>
+            </select>
+            <div class="flex items-center gap-2 flex-1">
+                <input type="text" class="filter-val1 flex-1 bg-[#0f172a] text-slate-200 p-2 rounded border border-slate-600 focus:border-blue-500 outline-none" placeholder="數值/文字">
+                <span class="filter-between-to hidden text-slate-400 font-bold px-1">~</span>
+                <input type="number" class="filter-val2 hidden flex-1 bg-[#0f172a] text-slate-200 p-2 rounded border border-slate-600 focus:border-blue-500 outline-none" placeholder="最大值">
+            </div>
+            ${!isPrimary ? `<button onclick="document.getElementById('${rowId}').remove()" class="p-2 text-slate-400 hover:text-rose-400 rounded transition-colors shrink-0">${ICONS.trash}</button>` : '<div class="w-8 shrink-0"></div>'}
+        `;
+        rowDiv.querySelector('.filter-op-select').addEventListener('change', (e) => {
+            const op = e.target.value; const v1 = rowDiv.querySelector('.filter-val1'); const v2 = rowDiv.querySelector('.filter-val2'); const to = rowDiv.querySelector('.filter-between-to');
+            if (op === 'between') { v1.type = 'number'; v1.placeholder = '最小值'; v2.classList.remove('hidden'); to.classList.remove('hidden'); } 
+            else { v1.type = 'text'; v1.placeholder = '數值/文字'; v2.classList.add('hidden'); to.classList.add('hidden'); }
+        });
+        filterList.appendChild(rowDiv);
+    };
+
+    window.addSortRuleRow = function(html, isPrimary) {
+        const sortList = document.getElementById('sort-rules-list');
+        const rowId = 'sort-row-' + Date.now();
+        const rowDiv = document.createElement('div'); rowDiv.id = rowId;
+        rowDiv.className = 'flex flex-col md:flex-row md:items-center gap-2 bg-indigo-900/30 p-2.5 rounded-lg border border-indigo-500/30';
+        const label = isPrimary ? '<span class="font-bold text-indigo-300 w-16 shrink-0">優先</span>' : '<span class="font-bold text-slate-400 w-16 shrink-0">次要</span>';
+        
+        rowDiv.innerHTML = `
+            ${label}
+            <select class="sort-col-select flex-1 bg-[#0f172a] text-slate-200 p-2 rounded border border-slate-600 focus:border-indigo-500">${html}</select>
+            <select class="sort-dir-select bg-[#0f172a] text-slate-200 p-2 rounded border border-slate-600 focus:border-indigo-500 shrink-0">
+                <option value="asc">從小到大 (A-Z)</option><option value="desc">從大到小 (Z-A)</option>
+            </select>
+            ${!isPrimary ? `<button onclick="document.getElementById('${rowId}').remove()" class="p-2 text-slate-400 hover:text-rose-400 rounded transition-colors shrink-0">${ICONS.trash}</button>` : '<div class="w-8 shrink-0"></div>'}
+        `;
+        sortList.appendChild(rowDiv);
+    };
+
+    window.applyAdvancedFilter = function() {
+        if (!currentSpreadsheet) return;
+        const rows = document.querySelectorAll('#filter-rules-list > div');
+        const rules = []; let hasError = false;
+        rows.forEach(r => {
+            const colIdx = parseInt(r.querySelector('.filter-col-select').value); const op = r.querySelector('.filter-op-select').value;
+            const val1 = r.querySelector('.filter-val1').value.trim(); const val2 = r.querySelector('.filter-val2').value.trim();
+            if (val1 === '' && op !== 'empty') { hasError = true; }
+            rules.push({ colIdx, op, val1, val2 });
+        });
+        if (hasError) { showToast('請完整輸入所有篩選條件的數值！', 'error'); return; }
+
+        let filtered = originalTableData.filter(row => {
+            return rules.every(rule => {
+                let cellVal = String(row[rule.colIdx] || '').trim(); let numCell = parseFloat(cellVal.replace(/,/g, ''));
+                if (rule.op === 'includes') return cellVal.toLowerCase().includes(rule.val1.toLowerCase());
+                if (rule.op === '=') return cellVal === rule.val1 || numCell === parseFloat(rule.val1);
+                if (rule.op === '>') return !isNaN(numCell) && numCell > parseFloat(rule.val1);
+                if (rule.op === '<') return !isNaN(numCell) && numCell < parseFloat(rule.val1);
+                if (rule.op === 'between') { let min = parseFloat(rule.val1), max = parseFloat(rule.val2); return !isNaN(numCell) && !isNaN(min) && !isNaN(max) && numCell >= min && numCell <= max; }
+                if (rule.op === 'empty') return cellVal === '';
+                return true;
+            });
+        });
+        currentTableData = filtered; currentSpreadsheet.setData(filtered); toggleActivePanel(null); showToast(`多重篩選完成，共 ${filtered.length} 筆結果。`, 'success');
+    };
+
+    window.applyAdvancedSort = function() {
+        if (!currentSpreadsheet) return;
+        const rows = document.querySelectorAll('#sort-rules-list > div');
+        const sortRules = [];
+        rows.forEach(r => { sortRules.push({ col: parseInt(r.querySelector('.sort-col-select').value), asc: r.querySelector('.sort-dir-select').value === 'asc' }); });
+        let sorted = [...currentTableData];
+        sorted.sort((a, b) => {
+            for (let rule of sortRules) {
+                let vA = String(a[rule.col] || '').trim(); let vB = String(b[rule.col] || '').trim();
+                let numA = parseFloat(vA.replace(/,/g, '')), numB = parseFloat(vB.replace(/,/g, ''));
+                let cmp = 0;
+                if (!isNaN(numA) && !isNaN(numB)) cmp = numA - numB; else cmp = vA.localeCompare(vB);
+                if (cmp !== 0) return rule.asc ? cmp : -cmp;
+            }
+            return 0;
+        });
+        currentTableData = sorted; currentSpreadsheet.setData(sorted); toggleActivePanel(null); showToast(`多重排序已套用完成。`, 'success');
+    };
+
+    window.applyGroupBy = function() {
+        if (!currentSpreadsheet) return;
+        const groupCol = parseInt(document.getElementById('groupby-col-select').value);
+        const valCol = parseInt(document.getElementById('groupby-val-select').value);
+        const aggType = document.getElementById('groupby-op-select').value;
+        const groupName = currentHeaders.find(h => h.index === groupCol).originalTitle;
+        const valName = currentHeaders.find(h => h.index === valCol).originalTitle;
+
+        let groups = {};
+        currentTableData.forEach(row => {
+            let key = String(row[groupCol] || '').trim(); if (key === '') key = '(空白)';
+            let numVal = parseFloat(String(row[valCol] || '').replace(/,/g, ''));
+            if (!groups[key]) groups[key] = { sum: 0, count: 0, max: -Infinity, min: Infinity };
+            groups[key].count++; 
+            if (!isNaN(numVal)) {
+                groups[key].sum += numVal;
+                if (numVal > groups[key].max) groups[key].max = numVal;
+                if (numVal < groups[key].min) groups[key].min = numVal;
+            }
+        });
+
+        let newData = [];
+        for (let key in groups) {
+            let g = groups[key]; let res = 0;
+            if (aggType === 'sum') res = g.sum; if (aggType === 'avg') res = g.count > 0 ? g.sum / g.count : 0;
+            if (aggType === 'max') res = g.max === -Infinity ? 0 : g.max; if (aggType === 'min') res = g.min === Infinity ? 0 : g.min;
+            if (aggType === 'count') res = g.count;
+            newData.push([key, Number(res.toFixed(4))]);
+        }
+        currentHeaders = [ { index: 0, name: 'A', originalTitle: groupName }, { index: 1, name: 'B', originalTitle: `${aggType.toUpperCase()}(${valName})` } ];
+        currentTableData = newData; originalTableData = JSON.parse(JSON.stringify(newData)); 
+        renderSpreadsheet(); toggleActivePanel(null); showToast('分組聚合完成！已產生全新的分析表。', 'success');
+    };
+
+    window.applyColumnMath = function() {
+        if (!currentSpreadsheet) return;
+        const col1 = parseInt(document.getElementById('math-col1').value); const op = document.getElementById('math-op').value; const col2 = parseInt(document.getElementById('math-col2').value);
+        let newName = document.getElementById('math-name').value.trim() || '衍生計算欄位';
+        let newIdx = currentHeaders.length; let newExcelCol = getExcelColumnName(newIdx);
+        currentHeaders.push({ index: newIdx, name: newExcelCol, originalTitle: newName });
+        const processRow = (row) => {
+            let v1 = parseFloat(String(row[col1] || '').replace(/,/g, '')); let v2 = parseFloat(String(row[col2] || '').replace(/,/g, '')); let res = '';
+            if (!isNaN(v1) && !isNaN(v2)) { if (op === '+') res = v1 + v2; if (op === '-') res = v1 - v2; if (op === '*') res = v1 * v2; if (op === '/') res = v2 !== 0 ? v1 / v2 : 0; }
+            row.push(res !== '' ? Number(res.toFixed(4)) : ''); 
+        };
+        currentTableData.forEach(processRow); originalTableData.forEach(processRow);
+        renderSpreadsheet(); toggleActivePanel(null); showToast(`已新增衍生欄位：[${newExcelCol}]`, 'success');
+    };
+
+    window.applyExtraction = function() {
+        if (!currentSpreadsheet) return;
+        const colIdx = parseInt(document.getElementById('ext-col').value); const start = parseInt(document.getElementById('ext-start').value); const len = parseInt(document.getElementById('ext-len').value);
+        let newName = document.getElementById('ext-name').value.trim() || '文字萃取結果';
+        if (isNaN(start) || isNaN(len) || start < 1 || len < 1) { showToast('請輸入大於 0 的有效數字！', 'error'); return; }
+        let newIdx = currentHeaders.length; let newExcelCol = getExcelColumnName(newIdx);
+        currentHeaders.push({ index: newIdx, name: newExcelCol, originalTitle: newName });
+        const extractFn = (row) => { let str = String(row[colIdx] || ''); row.push(str.substring(start - 1, start - 1 + len)); };
+        currentTableData.forEach(extractFn); originalTableData.forEach(extractFn);
+        renderSpreadsheet(); toggleActivePanel(null); showToast(`文字萃取完成，已新增至最右側！`, 'success');
+    };
+
+    window.calculateStats = function() {
+        const colIdx = parseInt(document.getElementById('stat-col-select').value);
+        let sum = 0, count = 0, max = -Infinity, min = Infinity; let hasValidNum = false; let uniqueSet = new Set();
+
+        currentTableData.forEach(row => {
+            let rawStr = String(row[colIdx] || '').trim();
+            if (rawStr !== '') uniqueSet.add(rawStr); 
+            let valStr = rawStr.replace(/,/g, '');
+            if (valStr !== '') {
+                let val = parseFloat(valStr);
+                if (!isNaN(val)) { sum += val; count++; if (val > max) max = val; if (val < min) min = val; hasValidNum = true; }
+            }
+        });
+
+        if (uniqueSet.size === 0) { showToast('選擇的欄位完全沒有資料！', 'error'); document.getElementById('stat-results').classList.add('hidden'); return; }
+        const fmt = (num) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(num);
+        
+        let htmlStr = `<div class="bg-teal-900/30 p-3 rounded-lg text-center border border-teal-500/30"><p class="text-teal-400 text-xs font-bold mb-1">相異數量</p><p class="text-white font-mono text-lg">${fmt(uniqueSet.size)}</p></div>`;
+        if (hasValidNum) {
+            htmlStr += `
+                <div class="bg-teal-900/30 p-3 rounded-lg text-center border border-teal-500/30"><p class="text-teal-400 text-xs font-bold mb-1">有效數值</p><p class="text-white font-mono text-lg">${fmt(count)}</p></div>
+                <div class="bg-teal-900/30 p-3 rounded-lg text-center border border-teal-500/30"><p class="text-teal-400 text-xs font-bold mb-1">加總</p><p class="text-white font-mono text-lg">${fmt(sum)}</p></div>
+                <div class="bg-teal-900/30 p-3 rounded-lg text-center border border-teal-500/30"><p class="text-teal-400 text-xs font-bold mb-1">平均</p><p class="text-white font-mono text-lg">${fmt(sum / count)}</p></div>
+                <div class="bg-teal-900/30 p-3 rounded-lg text-center border border-teal-500/30"><p class="text-teal-400 text-xs font-bold mb-1">最大值</p><p class="text-white font-mono text-lg">${fmt(max)}</p></div>
+                <div class="bg-teal-900/30 p-3 rounded-lg text-center border border-teal-500/30"><p class="text-teal-400 text-xs font-bold mb-1">最小值</p><p class="text-white font-mono text-lg">${fmt(min)}</p></div>
+            `;
+        }
+        document.getElementById('stat-results').innerHTML = htmlStr; document.getElementById('stat-results').classList.remove('hidden');
+    };
+
+    window.generateChart = function() {
+        const xCol = parseInt(document.getElementById('chart-x-select').value); const yCol = parseInt(document.getElementById('chart-y-select').value);
+        const type = document.getElementById('chart-type-select').value;
+        const xTitle = currentHeaders.find(h => h.index === xCol).originalTitle; const yTitle = currentHeaders.find(h => h.index === yCol).originalTitle;
+
+        let agg = {}; let hasValidData = false;
+        currentTableData.forEach(row => {
+            let xVal = String(row[xCol] || '空白').trim(); let yVal = parseFloat(String(row[yCol] || '').replace(/,/g, ''));
+            if (!isNaN(yVal)) { agg[xVal] = (agg[xVal] || 0) + yVal; hasValidData = true; }
+        });
+        if (!hasValidData) { showToast('Y 軸選擇的欄位中沒有有效的數值！', 'error'); return; }
+
+        let sortedKeys = Object.keys(agg).sort((a,b) => agg[b] - agg[a]).slice(0, 50);
+        let labels = sortedKeys; let data = sortedKeys.map(k => agg[k]);
+
+        document.getElementById('chart-modal').classList.remove('hidden');
+        const ctx = document.getElementById('visual-chart').getContext('2d');
+        if (currentChartObj) currentChartObj.destroy();
+        
+        const bgColors = labels.map((_, i) => `hsl(${(i * 360) / labels.length}, 70%, 60%)`);
+        const isPie = type === 'pie' || type === 'doughnut';
+
+        currentChartObj = new Chart(ctx, {
+            type: type,
+            data: { labels: labels, datasets: [{ label: `${yTitle} (依 ${xTitle} 加總)`, data: data, backgroundColor: isPie ? bgColors : 'rgba(59, 130, 246, 0.7)', borderColor: isPie ? '#1e293b' : 'rgba(59, 130, 246, 1)', borderWidth: 1 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 14 } } }, tooltip: { titleFont: { size: 16 }, bodyFont: { size: 14 } } }, scales: isPie ? {} : { x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }, y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } } } }
+        });
+    };
+
+    window.exportChart = function() {
+        const url = document.getElementById('visual-chart').toDataURL('image/png');
+        const a = document.createElement('a'); a.href = url; a.download = `視覺化圖表_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.png`; a.click();
+    };
+
+    window.resetData = function() {
+        if(!currentSpreadsheet) return;
+        currentSpreadsheet.setData(originalTableData); 
+        currentTableData = JSON.parse(JSON.stringify(originalTableData)); 
+        showToast('已清除篩選與排序條件','info');
+    };
+    window.exportCurrentData = function() {
+        if (!currentSpreadsheet) return;
+        const csvStr = Papa.unparse({ fields: currentHeaders.map(h => h.originalTitle), data: currentSpreadsheet.getData() });
+        const blob = new Blob(["\ufeff" + csvStr], {type: 'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url;
+        a.download = `分析結果_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.csv`; a.click(); URL.revokeObjectURL(url); showToast('已匯出當前分析結果！', 'success');
+    };
+
+    function setupImportExport() {
+      const exportBtn = document.getElementById('export-btn'); const importFile = document.getElementById('import-file');
+      if (exportBtn) {
+        exportBtn.addEventListener('click', async () => {
+          const data = await loadFromLocal(); if (data.length === 0) { showToast('沒有紀錄可供匯出', 'info'); return; }
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = `練習紀錄_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.json`; a.click(); URL.revokeObjectURL(url);
+          showToast('匯出成功！', 'success');
+        });
+      }
+      if (importFile) {
+        importFile.addEventListener('change', (e) => {
+          const file = e.target.files[0]; if (!file) return;
+          const reader = new FileReader();
+          reader.onload = async (event) => {
+            try {
+              const data = JSON.parse(event.target.result); let importCount = 0;
+              if (Array.isArray(data)) {
+                for (const sub of data) { if (sub.id && sub.questionId) { await saveToLocal(sub); importCount++; } }
+                if (importCount > 0) { state.submissions = (await loadFromLocal()).sort((a, b) => b.timestamp - a.timestamp); renderAllHistories(); renderSidebar(); showToast(`成功匯入 ${importCount} 筆！`, 'success'); }
+              }
+            } catch (err) { showToast('檔案格式錯誤', 'error'); }
+            e.target.value = ''; 
+          };
+          reader.readAsText(file);
+        });
+      }
+    }
+
+    async function initSystem() {
+      // 確保一開始網頁就沒有那些隱藏按鈕的影響
+      const wrapper = document.getElementById('main-content-wrapper');
+      if (wrapper) wrapper.classList.add('max-w-full');
+
+      try {
+        const res = await fetch('./config/title.json');
+        if (!res.ok) throw new Error();
+        let jsonText = await res.text();
+        const _t = new Date(); jsonText = jsonText.replace(/\{\{TODAY_ROC\}\}/g, `${_t.getFullYear() - 1911}/${_t.getMonth() + 1}/${_t.getDate()}`);
+        CATEGORIES = JSON.parse(jsonText);
+        if(CATEGORIES.length > 0) state.activeCategoryId = CATEGORIES.find(c => !c.isDataViewer)?.id || CATEGORIES[0].id;
+      } catch (e) { 
+        console.warn('無法載入題庫清單 (config/title.json)，啟用備用題庫！'); 
+        CATEGORIES = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+        if(CATEGORIES.length > 0) state.activeCategoryId = CATEGORIES.find(c => !c.isDataViewer)?.id || CATEGORIES[0].id;
+      }
+
+      setupImportExport();
+
+      try {
+        await initLocalDB(); const localData = await loadFromLocal();
+        if (localData.length > 0) state.submissions = localData.sort((a, b) => b.timestamp - a.timestamp);
+      } catch (e) { console.error("本地資料庫異常:", e); }
+
+      try {
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        globalAppId = typeof __app_id !== 'undefined' ? __app_id : 'default-quiz-app-id';
+        if (firebaseConfig) { app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app); } 
+      } catch (error) { state.dbError = true; }
+
+      if (auth) {
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+          else await signInAnonymously(auth);
+        } catch (error) { state.dbError = true; }
+
+        onAuthStateChanged(auth, (currentUser) => {
+          state.user = currentUser;
+          if (currentUser && db && !state.dbError) {
+            const submissionsRef = collection(db, 'artifacts', globalAppId, 'users', currentUser.uid, 'submissions');
+            onSnapshot(submissionsRef, (snapshot) => {
+              const fetchedData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+              fetchedData.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+              state.submissions = fetchedData; renderAllHistories(); renderSidebar();
+            });
+          }
+        });
+      }
+
+      initDataViewer();
+      
+      // [修復] 根據螢幕尺寸初始化側邊欄與分析面板狀態，並確保 DOM 正確套用
+      state.isSpreadsheetOpen = window.innerWidth >= 1280;
+      state.isSidebarOpen = window.innerWidth >= 768;
+      
+      const rightPanel = document.getElementById('right-panel');
+      if (state.isSpreadsheetOpen) { rightPanel.classList.remove('spreadsheet-closed'); } 
+      else { rightPanel.classList.add('spreadsheet-closed'); }
+
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      if (state.isSidebarOpen) { sidebar.classList.remove('sidebar-closed'); overlay.classList.remove('hidden'); } 
+      else { sidebar.classList.add('sidebar-closed'); overlay.classList.add('hidden'); }
+
+      const loadingScreen = document.getElementById('loading-screen');
+      loadingScreen.classList.add('opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        loadingScreen.classList.add('hidden'); document.getElementById('app').classList.remove('hidden');
+        initGeometricBackground(); renderSidebar(); renderStatusBar(); renderMainContent();
+      }, 500); 
+    }
+
+    initSystem();
+  </script>
+</body>
+</html>
