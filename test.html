@@ -565,17 +565,17 @@ th.is-num .g-h { flex-direction: row; }
 .code .s { color: #9ff0c9; }
 
 /* ---------- 浮動元件 ---------- */
-#pop { position: fixed; z-index: 250; min-width: 220px; max-width: min(92vw, 440px); background: var(--panel-2); border: 1px solid #3d388a; border-radius: 12px; box-shadow: 0 24px 60px rgba(0, 0, 0, .6); overflow: hidden; }
-.menu { display: grid; padding: 6px; }
-.menu-h { padding: 8px 10px 6px; font-size: 12.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu-f { padding: 8px 10px 4px; margin-top: 4px; border-top: 1px solid var(--line); font-size: 12px; color: var(--faint); }
-.menu button { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 10px; background: none; border: 0; border-radius: 7px; color: var(--text); font-size: 14.5px; text-align: left; }
+#pop { position: fixed; z-index: 250; min-width: 220px; max-width: min(92vw, 440px); background: var(--panel-2); border: 1px solid #3d388a; border-radius: 12px; box-shadow: 0 24px 60px rgba(0, 0, 0, .6); overflow: hidden; display: flex; flex-direction: column; }
+.menu { display: flex; flex-direction: column; min-height: 0; padding: 6px; }
+.menu-h { flex: none; padding: 8px 10px 6px; font-size: 12.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-f { flex: none; padding: 8px 10px 4px; margin-top: 4px; border-top: 1px solid var(--line); font-size: 12px; color: var(--faint); }
+.menu button { display: flex; flex: none; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px; background: none; border: 0; border-radius: 7px; color: var(--text); font-size: 14.5px; text-align: left; }
 .menu button:hover, .menu button:focus-visible { background: rgba(255, 200, 61, .16); outline: none; }
 .menu button .ico { color: var(--faint); }
 .menu button span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu button em { font-style: normal; font-size: 12px; color: var(--ok); }
-.menu-q { height: 36px; margin: 2px 4px 6px; padding: 0 10px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 7px; font-size: 14px; }
-.menu-list { display: grid; max-height: min(56vh, 420px); overflow-y: auto; }
+.menu-q { flex: none; height: 40px; margin: 2px 4px 6px; padding: 0 10px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 7px; font-size: 14px; }
+.menu-list { display: grid; align-content: start; flex: 1 1 auto; min-height: 0; max-height: min(56vh, 420px); overflow-y: auto; overscroll-behavior: contain; }
 
 #toasts { position: fixed; left: 50%; bottom: 22px; z-index: 500; transform: translateX(-50%); display: grid; gap: 8px; justify-items: center; width: min(92vw, 560px); pointer-events: none; }
 .toast { display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 11px 16px; background: var(--raise); border: 1px solid #3d388a; border-left: 4px solid var(--cyan); border-radius: 8px; box-shadow: 0 14px 40px rgba(0, 0, 0, .5); font-size: 14.5px; line-height: 1.5; opacity: 0; transform: translateY(14px); transition: opacity .3s, transform .3s var(--ease); }
@@ -709,6 +709,7 @@ html.fx-cursor #cur.on, html.fx-cursor #cur-ring.on { opacity: 1; }
 
 /* 對話框 */
 #modal { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 18px; background: rgba(4, 3, 12, .78); backdrop-filter: blur(5px); }
+.modal-box:focus { outline: none; }
 .modal-box { --cut: 22px; --edge: linear-gradient(135deg, var(--gold), var(--pink) 45%, var(--cyan)); display: flex; flex-direction: column; width: min(580px, 100%); max-height: min(88vh, 880px); animation: modal-in .3s var(--ease); }
 .modal-box.is-wide { width: min(1120px, 100%); }
 .modal-box::after { background: linear-gradient(180deg, #1b183e, #110f28); }
@@ -790,6 +791,13 @@ html.fx-cursor #cur.on, html.fx-cursor #cur-ring.on { opacity: 1; }
   .lib-list { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* 觸控裝置：輸入框字級不到 16px 時，iOS 會在點下去的瞬間自動放大整個畫面 */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
+  .f { height: 38px; }
+  .chip { height: 38px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
   .bg-beam, #bg-hex { display: none; }
@@ -836,7 +844,7 @@ html.fx-cursor #cur.on, html.fx-cursor #cur-ring.on { opacity: 1; }
           <rect x="6" y="26" width="8" height="16" /><rect x="20" y="16" width="8" height="26" /><rect x="34" y="6" width="8" height="36" />
         </svg>
         <div class="brand-text">
-          <strong>資料分析 BETA</strong>
+          <strong>資料分析</strong>
           <span>練習平台</span>
         </div>
         <button id="close-side" class="icon-btn" type="button" aria-label="關閉題庫清單">
@@ -2646,15 +2654,29 @@ function openPop(anchor, html, onPick) {
   pop.anchor = anchor;
   pop.onPick = onPick;
   pop.at = performance.now();
-  const a = anchor.getBoundingClientRect();
-  const w = el.offsetWidth, h = el.offsetHeight;
-  let left = Math.min(a.left, window.innerWidth - w - 8);
-  let top = a.bottom + 6;
-  if (top + h > window.innerHeight - 8) top = Math.max(8, a.top - h - 6);
-  el.style.left = Math.max(8, left) + 'px';
-  el.style.top = top + 'px';
-  const first = el.querySelector('input, button');
+  placePop();
+  // 觸控裝置不要自動點進輸入框：螢幕鍵盤一彈出來，畫面大小改變，選單就被當成「視窗縮放」關掉了
+  const first = el.querySelector(isTouch() ? 'button' : 'input, button');
   if (first) first.focus({ preventScroll: true });
+}
+
+const isTouch = () => window.matchMedia('(pointer: coarse)').matches;
+
+/** 把選單放在按鈕旁邊，並限制在「看得到的範圍」內（螢幕鍵盤打開時，看得到的範圍會變矮） */
+function placePop() {
+  const el = $('#pop');
+  if (!el || el.hidden || !pop.anchor || !document.contains(pop.anchor)) return;
+  const vv = window.visualViewport;
+  const vw = vv ? vv.width : window.innerWidth, vh = vv ? vv.height : window.innerHeight;
+  const ox = vv ? vv.offsetLeft : 0, oy = vv ? vv.offsetTop : 0;
+  el.style.maxHeight = Math.max(150, vh - 16) + 'px';
+  const a = pop.anchor.getBoundingClientRect();
+  const w = el.offsetWidth, h = el.offsetHeight;
+  let top = a.bottom + 6;
+  if (top + h > oy + vh - 8) top = a.top - h - 6;                      // 下面放不下就放上面
+  if (top < oy + 8) top = Math.max(oy + 8, oy + vh - h - 8);           // 上面也放不下就貼齊可視範圍
+  el.style.left = Math.max(ox + 8, Math.min(a.left, ox + vw - w - 8)) + 'px';
+  el.style.top = top + 'px';
 }
 function closePop(refocus) {
   const el = $('#pop');
@@ -2681,7 +2703,18 @@ function initPop() {
     closePop();
   }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !el.hidden) { e.stopPropagation(); closePop(true); } }, true);
-  window.addEventListener('resize', () => closePop());
+  // 只有「寬度」改變（真的縮放視窗、轉向）才關掉選單；
+  // 高度改變多半是手機的螢幕鍵盤或網址列收合，這時只要重新定位就好
+  let lastW = window.innerWidth, raf = 0;
+  const replace = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; placePop(); }); };
+  window.addEventListener('resize', () => {
+    if (window.innerWidth !== lastW) { lastW = window.innerWidth; closePop(); }
+    else replace();
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', replace);
+    window.visualViewport.addEventListener('scroll', replace);
+  }
 }
 
 /* ---------- 剪貼簿與下載 ---------- */
@@ -2721,9 +2754,10 @@ function openModal(html, label, cls) {
   closePop();
   const m = $('#modal');
   if (m.hidden) modal.prev = document.activeElement;
-  m.innerHTML = `<div class="modal-box${cls ? ' ' + cls : ''}" role="dialog" aria-modal="true" aria-label="${esc(label || '')}">${html}</div>`;
+  m.innerHTML = `<div class="modal-box${cls ? ' ' + cls : ''}" role="dialog" aria-modal="true" aria-label="${esc(label || '')}" tabindex="-1">${html}</div>`;
   m.hidden = false;
-  const f = m.querySelector('[data-autofocus]') || m.querySelector('input, select, button');
+  // 觸控裝置把焦點放在對話框本身，不要一打開就跳出螢幕鍵盤
+  const f = isTouch() ? m.firstElementChild : m.querySelector('[data-autofocus]') || m.querySelector('input, select, button');
   if (f) f.focus({ preventScroll: true });
 }
 function closeModal() {
@@ -4950,7 +4984,9 @@ function bindChrome() {
   const main = $('#main'), top = $('#to-top');
   main.addEventListener('scroll', () => {
     top.classList.toggle('in', main.scrollTop > 400);
-    if (performance.now() - pop.at > 300) closePop();   // 選單剛打開時的捲動（例如瀏覽器把按鈕捲進畫面）不算
+    // 選單剛打開時的捲動（瀏覽器把按鈕捲進畫面）、或正在選單的搜尋框裡打字（鍵盤彈出造成的捲動）都不算
+    const inPop = $('#pop').contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
+    if (performance.now() - pop.at > 300 && !inPop) closePop();
   }, { passive: true });
   top.addEventListener('click', () => main.scrollTo({ top: 0, behavior: reduceMotion() ? 'auto' : 'smooth' }));
 }
