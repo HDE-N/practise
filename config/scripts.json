@@ -1,0 +1,366 @@
+{
+  "說明": [
+    "這是雲端試算表的「腳本庫」。網頁會讀取這個檔案（config/scripts.json），想新增或修改腳本，直接編輯這裡就可以，不用動 HTML。",
+    "每個腳本的欄位：title（名稱）、category（分類）、desc（說明）、tip（套用後的提醒，可省略）、needs（至少要載入幾份資料，可省略）、vars（要請使用者填的空格）、blocks（積木）。",
+    "vars 的 type：col＝請使用者選一個欄位（kind 可填 num / text / date / any，guess 是用來猜預設欄位的關鍵字，prefer 填 many 表示偏好內容種類多的欄位）；number、text＝請使用者填值（可給 default）。",
+    "blocks 裡的 p 就是積木的設定，可以用 {{空格名稱}} 代入使用者填的內容；沒寫到的設定會用積木的預設值。",
+    "最簡單的做法：先在網頁上把積木排好，按「存成腳本」→「下載成 JSON 檔」，再把檔案裡 scripts 陣列中的那一段貼進來，需要的話把欄位名稱換成 {{空格名稱}} 並補上 vars。"
+  ],
+  "version": 1,
+  "scripts": [
+    {
+      "title": "這一欄有幾種不同的內容",
+      "category": "基礎統計",
+      "desc": "算出某個欄位裡不重複的內容有幾種。例：資料裡總共有幾種「癌症別」。",
+      "vars": [{ "key": "欄位", "label": "要數的欄位", "type": "col", "kind": "text" }],
+      "blocks": [
+        { "type": "group", "p": { "keys": [], "aggs": [{ "fn": "nunique", "col": "{{欄位}}" }] } }
+      ]
+    },
+    {
+      "title": "每種內容各有幾筆（由多到少）",
+      "category": "基礎統計",
+      "desc": "依某個欄位分組數筆數，再由多到少排列。例：每個縣市各有幾個測速照相點。",
+      "vars": [{ "key": "欄位", "label": "要分組的欄位", "type": "col", "kind": "text" }],
+      "blocks": [
+        { "type": "group", "p": { "keys": ["{{欄位}}"], "aggs": [{ "fn": "count" }] } },
+        { "type": "sort", "p": { "keys": [{ "col": "筆數", "dir": "desc" }] } }
+      ]
+    },
+    {
+      "title": "整欄的加總、平均、最大、最小",
+      "category": "基礎統計",
+      "desc": "一次算出某個數字欄位的加總、平均、最大值、最小值和筆數。",
+      "vars": [{ "key": "數值欄", "label": "要統計的數字欄位", "type": "col", "kind": "num" }],
+      "blocks": [
+        { "type": "group", "p": { "keys": [], "aggs": [
+          { "fn": "sum", "col": "{{數值欄}}" }, { "fn": "avg", "col": "{{數值欄}}" },
+          { "fn": "max", "col": "{{數值欄}}" }, { "fn": "min", "col": "{{數值欄}}" }, { "fn": "count" }
+        ] } }
+      ]
+    },
+
+    {
+      "title": "各類別加總後取前幾名",
+      "category": "排名",
+      "desc": "依類別分組加總，由大到小排序後取前 N 名。例：發生數最高的前三個縣市。",
+      "vars": [
+        { "key": "類別欄", "label": "分組的欄位", "type": "col", "kind": "text", "guess": ["縣市", "county", "城市", "類別"] },
+        { "key": "數值欄", "label": "要加總的數字欄位", "type": "col", "kind": "num" },
+        { "key": "N", "label": "取前幾名", "type": "number", "default": 3 }
+      ],
+      "blocks": [
+        { "type": "group", "p": { "keys": ["{{類別欄}}"], "aggs": [{ "fn": "sum", "col": "{{數值欄}}" }] } },
+        { "type": "sort", "p": { "keys": [{ "col": "{{數值欄}}_加總", "dir": "desc" }] } },
+        { "type": "head", "p": { "from": "top", "n": "{{N}}" } }
+      ]
+    },
+    {
+      "title": "各類別平均後取前幾名（兩位小數）",
+      "category": "排名",
+      "desc": "依類別分組算平均，由大到小取前 N 名，並補成兩位小數。例：PM2.5 平均濃度最高的前三個縣市。",
+      "vars": [
+        { "key": "類別欄", "label": "分組的欄位", "type": "col", "kind": "text", "guess": ["縣市", "county", "城市", "類別"] },
+        { "key": "數值欄", "label": "要算平均的數字欄位", "type": "col", "kind": "num" },
+        { "key": "N", "label": "取前幾名", "type": "number", "default": 3 }
+      ],
+      "blocks": [
+        { "type": "group", "p": { "keys": ["{{類別欄}}"], "aggs": [{ "fn": "avg", "col": "{{數值欄}}" }] } },
+        { "type": "sort", "p": { "keys": [{ "col": "{{數值欄}}_平均", "dir": "desc" }] } },
+        { "type": "head", "p": { "from": "top", "n": "{{N}}" } },
+        { "type": "round", "p": { "col": "{{數值欄}}_平均", "digits": 2, "pad": true } }
+      ]
+    },
+    {
+      "title": "數值最大的前幾列",
+      "category": "排名",
+      "desc": "不分組，直接依某個數字欄位由大到小排，留下前 N 列和你要看的欄位。例：AQI 最高的前三個測站。",
+      "vars": [
+        { "key": "名稱欄", "label": "要顯示的名稱欄位", "type": "col", "kind": "text", "prefer": "many", "guess": ["名稱", "name", "站"] },
+        { "key": "數值欄", "label": "用來排名的數字欄位", "type": "col", "kind": "num" },
+        { "key": "N", "label": "取前幾列", "type": "number", "default": 3 }
+      ],
+      "blocks": [
+        { "type": "sort", "p": { "keys": [{ "col": "{{數值欄}}", "dir": "desc" }] } },
+        { "type": "head", "p": { "from": "top", "n": "{{N}}" } },
+        { "type": "select", "p": { "mode": "keep", "cols": ["{{名稱欄}}", "{{數值欄}}"] } }
+      ]
+    },
+    {
+      "title": "兩欄相減，找差距最大的前幾筆",
+      "category": "排名",
+      "desc": "新增一欄「差距」＝甲欄－乙欄，再由大到小取前 N 筆。例：最高價減最低價，找出當日價差最大的三檔股票。",
+      "vars": [
+        { "key": "名稱欄", "label": "要顯示的名稱欄位", "type": "col", "kind": "text", "prefer": "many", "guess": ["名稱", "name"] },
+        { "key": "甲欄", "label": "被減的欄位（較大的）", "type": "col", "kind": "num", "guess": ["最高", "high", "max"] },
+        { "key": "乙欄", "label": "減去的欄位（較小的）", "type": "col", "kind": "num", "guess": ["最低", "low", "min"] },
+        { "key": "N", "label": "取前幾筆", "type": "number", "default": 3 }
+      ],
+      "blocks": [
+        { "type": "compute", "p": { "a": { "t": "col", "v": "{{甲欄}}" }, "op": "-", "b": { "t": "col", "v": "{{乙欄}}" }, "digits": "", "name": "差距" } },
+        { "type": "sort", "p": { "keys": [{ "col": "差距", "dir": "desc" }] } },
+        { "type": "head", "p": { "from": "top", "n": "{{N}}" } },
+        { "type": "select", "p": { "mode": "keep", "cols": ["{{名稱欄}}", "差距"] } },
+        { "type": "round", "p": { "col": "差距", "digits": 2, "pad": true } }
+      ]
+    },
+
+    {
+      "title": "只加總符合條件的列",
+      "category": "條件",
+      "desc": "先篩選出某欄等於指定內容的列，再把數字欄位加總。例：「臺南市」的總人口數。",
+      "tip": "記得把篩選積木裡的比較值改成題目要的內容。",
+      "vars": [
+        { "key": "條件欄", "label": "用來篩選的欄位", "type": "col", "kind": "text" },
+        { "key": "條件值", "label": "要等於什麼", "type": "text", "default": "" },
+        { "key": "數值欄", "label": "要加總的數字欄位", "type": "col", "kind": "num" }
+      ],
+      "blocks": [
+        { "type": "filter", "p": { "mode": "all", "conds": [{ "col": "{{條件欄}}", "op": "=", "vt": "val", "val": "{{條件值}}", "val2": "" }] } },
+        { "type": "group", "p": { "keys": [], "aggs": [{ "fn": "sum", "col": "{{數值欄}}" }] } }
+      ]
+    },
+    {
+      "title": "某個範圍內的加總",
+      "category": "條件",
+      "desc": "篩選出某欄介於兩個值之間的列，再把數字欄位加總。例：2000 年到 2005 年的總人數。",
+      "vars": [
+        { "key": "範圍欄", "label": "用來篩選範圍的欄位", "type": "col", "kind": "any", "guess": ["年", "year", "日期", "date"] },
+        { "key": "起", "label": "從", "type": "text", "default": "" },
+        { "key": "迄", "label": "到", "type": "text", "default": "" },
+        { "key": "數值欄", "label": "要加總的數字欄位", "type": "col", "kind": "num" }
+      ],
+      "blocks": [
+        { "type": "filter", "p": { "mode": "all", "conds": [{ "col": "{{範圍欄}}", "op": "between", "vt": "val", "val": "{{起}}", "val2": "{{迄}}" }] } },
+        { "type": "group", "p": { "keys": [], "aggs": [{ "fn": "sum", "col": "{{數值欄}}" }] } }
+      ]
+    },
+    {
+      "title": "甲欄大於乙欄的有幾列",
+      "category": "條件",
+      "desc": "比較同一列的兩個欄位，數出甲欄大於乙欄的列數。例：收盤價大於開盤價的股票有幾檔。",
+      "vars": [
+        { "key": "甲欄", "label": "甲欄（要比較大的）", "type": "col", "kind": "num", "guess": ["收盤", "close", "進站"] },
+        { "key": "乙欄", "label": "乙欄", "type": "col", "kind": "num", "guess": ["開盤", "open", "出站"] }
+      ],
+      "blocks": [
+        { "type": "filter", "p": { "mode": "all", "conds": [{ "col": "{{甲欄}}", "op": ">", "vt": "col", "val": "{{乙欄}}", "val2": "" }] } },
+        { "type": "group", "p": { "keys": [], "aggs": [{ "fn": "count" }] } }
+      ]
+    },
+    {
+      "title": "高於平均的有幾列",
+      "category": "條件",
+      "desc": "先算出整欄的平均，再數出大於平均的列數。倍數可以改，例如 1.2 就是「超過平均 20%」。",
+      "vars": [
+        { "key": "數值欄", "label": "要比較的數字欄位", "type": "col", "kind": "num" },
+        { "key": "倍數", "label": "平均的幾倍", "type": "number", "default": 1 }
+      ],
+      "blocks": [
+        { "type": "filter", "p": { "mode": "all", "conds": [{ "col": "{{數值欄}}", "op": ">", "vt": "stat", "stat": "avg", "mul": "{{倍數}}", "val": "", "val2": "" }] } },
+        { "type": "group", "p": { "keys": [], "aggs": [{ "fn": "count" }] } }
+      ]
+    },
+    {
+      "title": "找出重複出現的內容",
+      "category": "條件",
+      "desc": "數出每種內容出現幾次，只留下出現超過一次的。",
+      "vars": [{ "key": "欄位", "label": "要檢查的欄位", "type": "col", "kind": "text", "prefer": "many" }],
+      "blocks": [
+        { "type": "group", "p": { "keys": ["{{欄位}}"], "aggs": [{ "fn": "count" }] } },
+        { "type": "filter", "p": { "mode": "all", "conds": [{ "col": "筆數", "op": ">", "vt": "val", "val": "1", "val2": "" }] } },
+        { "type": "sort", "p": { "keys": [{ "col": "筆數", "dir": "desc" }] } }
+      ]
+    },
+
+    {
+      "title": "每個月的加總",
+      "category": "日期",
+      "desc": "從日期取出月份，再依月份加總。看得懂 20250927、2025/9/27、民國 114/9/27 這幾種寫法。",
+      "vars": [
+        { "key": "日期欄", "label": "日期欄位", "type": "col", "kind": "date" },
+        { "key": "數值欄", "label": "要加總的數字欄位", "type": "col", "kind": "num" }
+      ],
+      "blocks": [
+        { "type": "datepart", "p": { "col": "{{日期欄}}", "part": "month_zh", "name": "月份" } },
+        { "type": "group", "p": { "keys": ["月份"], "aggs": [{ "fn": "sum", "col": "{{數值欄}}" }] } }
+      ]
+    },
+    {
+      "title": "每個月的每日平均（由高到低，兩位小數）",
+      "category": "日期",
+      "desc": "依月份算平均，由高到低排序，並補成兩位小數。",
+      "vars": [
+        { "key": "日期欄", "label": "日期欄位", "type": "col", "kind": "date" },
+        { "key": "數值欄", "label": "要算平均的數字欄位", "type": "col", "kind": "num" }
+      ],
+      "blocks": [
+        { "type": "datepart", "p": { "col": "{{日期欄}}", "part": "month_zh", "name": "月份" } },
+        { "type": "group", "p": { "keys": ["月份"], "aggs": [{ "fn": "avg", "col": "{{數值欄}}" }] } },
+        { "type": "sort", "p": { "keys": [{ "col": "{{數值欄}}_平均", "dir": "desc" }] } },
+        { "type": "round", "p": { "col": "{{數值欄}}_平均", "digits": 2, "pad": true } }
+      ]
+    },
+    {
+      "title": "每個月數值最高的那一天",
+      "category": "日期",
+      "desc": "每個月各留下數值最大的那一列，並把日期整理成「月/日」。例：每個月人數最多的是哪一天。",
+      "vars": [
+        { "key": "日期欄", "label": "日期欄位", "type": "col", "kind": "date" },
+        { "key": "數值欄", "label": "要比大小的數字欄位", "type": "col", "kind": "num" }
+      ],
+      "blocks": [
+        { "type": "datepart", "p": { "col": "{{日期欄}}", "part": "ym", "name": "年月" } },
+        { "type": "grouptop", "p": { "keys": ["年月"], "col": "{{數值欄}}", "dir": "desc", "n": 1 } },
+        { "type": "datepart", "p": { "col": "{{日期欄}}", "part": "md", "name": "月日" } },
+        { "type": "select", "p": { "mode": "keep", "cols": ["月日", "{{數值欄}}"] } }
+      ]
+    },
+    {
+      "title": "月增率（MoM）",
+      "category": "日期",
+      "desc": "算出每個月的加總，以及和上個月相比的成長百分比（兩位小數）。",
+      "vars": [
+        { "key": "日期欄", "label": "日期欄位", "type": "col", "kind": "date" },
+        { "key": "數值欄", "label": "要加總的數字欄位", "type": "col", "kind": "num" }
+      ],
+      "blocks": [
+        { "type": "datepart", "p": { "col": "{{日期欄}}", "part": "ym", "name": "年月" } },
+        { "type": "group", "p": { "keys": ["年月"], "aggs": [{ "fn": "sum", "col": "{{數值欄}}" }] } },
+        { "type": "sort", "p": { "keys": [{ "col": "年月", "dir": "asc" }] } },
+        { "type": "window", "p": { "col": "{{數值欄}}_加總", "fn": "pctchg", "name": "月增率%" } },
+        { "type": "round", "p": { "col": "月增率%", "digits": 2, "pad": true } }
+      ]
+    },
+    {
+      "title": "平日和週末比較",
+      "category": "日期",
+      "desc": "把每一天標成「平日」或「週末」，再分別算加總與平均。",
+      "vars": [
+        { "key": "日期欄", "label": "日期欄位", "type": "col", "kind": "date" },
+        { "key": "數值欄", "label": "要統計的數字欄位", "type": "col", "kind": "num" }
+      ],
+      "blocks": [
+        { "type": "datepart", "p": { "col": "{{日期欄}}", "part": "weekend", "name": "平假日" } },
+        { "type": "group", "p": { "keys": ["平假日"], "aggs": [{ "fn": "sum", "col": "{{數值欄}}" }, { "fn": "avg", "col": "{{數值欄}}" }] } }
+      ]
+    },
+
+    {
+      "title": "各類別佔全部的百分比",
+      "category": "比例",
+      "desc": "依類別加總後，算出每一類佔總和的百分比（兩位小數），由大到小排列。",
+      "vars": [
+        { "key": "類別欄", "label": "分組的欄位", "type": "col", "kind": "text" },
+        { "key": "數值欄", "label": "要加總的數字欄位", "type": "col", "kind": "num" }
+      ],
+      "blocks": [
+        { "type": "group", "p": { "keys": ["{{類別欄}}"], "aggs": [{ "fn": "sum", "col": "{{數值欄}}" }] } },
+        { "type": "window", "p": { "col": "{{數值欄}}_加總", "fn": "pct", "name": "佔比%" } },
+        { "type": "sort", "p": { "keys": [{ "col": "佔比%", "dir": "desc" }] } },
+        { "type": "round", "p": { "col": "佔比%", "digits": 2, "pad": true } }
+      ]
+    },
+    {
+      "title": "甲欄佔乙欄的百分比",
+      "category": "比例",
+      "desc": "每一列算出 甲欄 ÷ 乙欄 × 100（兩位小數）。例：桃園機場人數佔當日總人數的比例。",
+      "vars": [
+        { "key": "甲欄", "label": "分子（部分）", "type": "col", "kind": "num" },
+        { "key": "乙欄", "label": "分母（全部）", "type": "col", "kind": "num", "guess": ["總", "total", "小計"] }
+      ],
+      "blocks": [
+        { "type": "formula", "p": { "name": "佔比%", "expr": "[{{甲欄}}] / [{{乙欄}}] * 100" } },
+        { "type": "round", "p": { "col": "佔比%", "digits": 2, "pad": true } }
+      ]
+    },
+    {
+      "title": "交叉表：兩個類別交叉統計",
+      "category": "比例",
+      "desc": "一個欄位當列、另一個欄位攤開成欄，格子裡放加總。例：縣市 × 年度的發生數。",
+      "vars": [
+        { "key": "列欄", "label": "放在列的欄位", "type": "col", "kind": "text" },
+        { "key": "欄欄", "label": "攤開成欄的欄位（種類不要太多）", "type": "col", "kind": "text" },
+        { "key": "數值欄", "label": "要加總的數字欄位", "type": "col", "kind": "num" }
+      ],
+      "blocks": [
+        { "type": "pivot", "p": { "row": "{{列欄}}", "col": "{{欄欄}}", "fn": "sum", "val": "{{數值欄}}" } }
+      ]
+    },
+
+    {
+      "title": "把多個檔案接起來，看每個檔案的加總",
+      "category": "多份資料",
+      "desc": "把欄位相同的幾份檔案（例如每個月一份）上下接在一起，並依來源檔案分別加總。",
+      "tip": "「上下串接」積木會自動挑欄位相同的檔案，可以在積木裡增減。",
+      "needs": 2,
+      "vars": [{ "key": "數值欄", "label": "要加總的數字欄位", "type": "col", "kind": "num" }],
+      "blocks": [
+        { "type": "append", "p": { "tag": true } },
+        { "type": "group", "p": { "keys": ["來源檔案"], "aggs": [{ "fn": "sum", "col": "{{數值欄}}" }] } }
+      ]
+    },
+    {
+      "title": "兩份檔案對照同一個項目，算出前後差異",
+      "category": "多份資料",
+      "desc": "用共同的欄位（例如代號）把另一份檔案接到右邊，再算出同一個數字欄位的差異（另一份 − 這一份）。例：同一檔股票兩天的收盤價差。",
+      "tip": "「左右合併」積木會自動挑另一份資料；從另一份接過來的同名欄位，名稱後面會多一個 _2。",
+      "needs": 2,
+      "vars": [
+        { "key": "對應欄", "label": "兩份檔案共同的欄位", "type": "col", "kind": "text", "prefer": "many", "guess": ["代號", "code", "id", "編號"] },
+        { "key": "數值欄", "label": "要比較的數字欄位", "type": "col", "kind": "num", "guess": ["收盤", "close"] }
+      ],
+      "blocks": [
+        { "type": "join", "p": { "left": "{{對應欄}}", "right": "{{對應欄}}", "how": "inner" } },
+        { "type": "compute", "p": { "a": { "t": "col", "v": "{{數值欄}}_2" }, "op": "-", "b": { "t": "col", "v": "{{數值欄}}" }, "digits": "2", "name": "差異" } },
+        { "type": "select", "p": { "mode": "keep", "cols": ["{{對應欄}}", "{{數值欄}}", "{{數值欄}}_2", "差異"] } }
+      ]
+    },
+
+    {
+      "title": "取欄位的前幾個字再分組",
+      "category": "清理與轉換",
+      "desc": "先擷取文字欄位的前幾個字，再用它分組加總。例：從「臺南市東區」取前三個字得到縣市。",
+      "vars": [
+        { "key": "文字欄", "label": "要擷取的文字欄位", "type": "col", "kind": "text", "prefer": "many" },
+        { "key": "字數", "label": "取前幾個字", "type": "number", "default": 3 },
+        { "key": "數值欄", "label": "要加總的數字欄位", "type": "col", "kind": "num" }
+      ],
+      "blocks": [
+        { "type": "text", "p": { "col": "{{文字欄}}", "fn": "substr", "start": 1, "len": "{{字數}}", "name": "前幾個字" } },
+        { "type": "group", "p": { "keys": ["前幾個字"], "aggs": [{ "fn": "sum", "col": "{{數值欄}}" }] } }
+      ]
+    },
+    {
+      "title": "把名稱結尾相同的欄位加在一起",
+      "category": "清理與轉換",
+      "desc": "每一列先把欄名結尾相同的欄位橫向加總，再算出整份的總和。例：所有「…機場小計」欄位的合計。",
+      "vars": [{ "key": "結尾", "label": "欄名的結尾文字", "type": "text", "default": "小計" }],
+      "blocks": [
+        { "type": "rowcalc", "p": { "mode": "ends", "cols": [], "pat": "{{結尾}}", "fn": "sum", "name": "橫向合計" } },
+        { "type": "group", "p": { "keys": [], "aggs": [{ "fn": "sum", "col": "橫向合計" }] } }
+      ]
+    },
+    {
+      "title": "把一排欄位攤直，再比較各欄的總和",
+      "category": "清理與轉換",
+      "desc": "把欄名結尾相同的欄位「攤直」成「項目、數值」兩欄，再依項目加總並排序。例：比較各機場的總人數。",
+      "vars": [{ "key": "結尾", "label": "欄名的結尾文字", "type": "text", "default": "小計" }],
+      "blocks": [
+        { "type": "melt", "p": { "mode": "ends", "cols": [], "pat": "{{結尾}}", "key": "項目", "val": "數值" } },
+        { "type": "group", "p": { "keys": ["項目"], "aggs": [{ "fn": "sum", "col": "數值" }] } },
+        { "type": "sort", "p": { "keys": [{ "col": "數值_加總", "dir": "desc" }] } }
+      ]
+    },
+    {
+      "title": "把帶單位的文字清成數字再加總",
+      "category": "清理與轉換",
+      "desc": "欄位裡有「1,234 元」「45%」這類內容時，先去掉單位和符號，再加總。",
+      "vars": [{ "key": "欄位", "label": "要清理的欄位", "type": "col", "kind": "any" }],
+      "blocks": [
+        { "type": "clean", "p": { "col": "{{欄位}}" } },
+        { "type": "group", "p": { "keys": [], "aggs": [{ "fn": "sum", "col": "{{欄位}}" }] } }
+      ]
+    }
+  ]
+}
