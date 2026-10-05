@@ -308,6 +308,9 @@ kbd { display: inline-block; padding: 1px 7px; background: var(--raise); border:
 .doc-sec ul { display: grid; gap: 8px; padding-left: 1.3em; list-style: square; }
 .doc-sec ul li::marker { color: var(--gold); }
 .doc-sec code { padding: 1px 7px; background: rgba(63, 227, 255, .12); color: var(--cyan); border-radius: 5px; font-size: .92em; }
+.doc-sec a { color: var(--cyan); font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; transition: color .2s, text-shadow .2s; }
+.doc-sec a::after { content: "↗"; display: inline-block; margin-left: 3px; font-size: .85em; text-decoration: none; }
+.doc-sec a:hover { color: var(--gold); text-shadow: 0 0 14px rgba(255, 200, 61, .5); }
 .doc-sec u { text-decoration-color: var(--gold); text-decoration-thickness: 2px; text-underline-offset: 4px; color: #fff; }
 .steps { display: grid; gap: 10px; padding: 18px 20px 18px 46px; list-style: decimal; background: #090817; border: 1px solid var(--line-soft); border-radius: 12px; }
 .steps li::marker { font-family: var(--font-display); font-weight: 700; color: var(--gold); }
@@ -3453,7 +3456,7 @@ function prefaceHTML() {
         <li>重啟後再次開啟終端機，依照畫面提示設定您的 Linux 帳號與密碼。</li>
       </ol>
       <ul>
-        <li>環境管理方面，建議使用 <strong>Miniconda</strong>（安裝教學可參考 此篇 HackMD 筆記）。</li>
+        <li>環境管理方面，建議使用 <strong>Miniconda</strong>（安裝教學可參考 <a href="https://hackmd.io/@HDE-NN/BkYpt-OZ-e" target="_blank" rel="noopener noreferrer">此篇 HackMD 筆記</a>）。</li>
         <li>資料處理套件推薦使用 <strong>pandas</strong>（不限定，可自由選擇）。</li>
       </ul>
     </section>
